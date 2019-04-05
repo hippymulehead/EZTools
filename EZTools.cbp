@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="EZTools"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install/strip">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 install/strip"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install/local">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 install/local"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 install"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="package">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 package"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="package_source">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 package_source"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="EZTools">
+				<Option output="/home/mromans/Programming/CLion/CPP/Home/EZTools/libEZTools.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 EZTools"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="EZTools/fast">
+				<Option output="/home/mromans/Programming/CLion/CPP/Home/EZTools/libEZTools.so" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option object_output="./"/>
+				<Option type="3"/>
+				<Option compiler="gcc"/>
+				<Compiler/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 EZTools/fast"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="list_install_components">
+				<Option working_dir="/home/mromans/Programming/CLion/CPP/Home/EZTools"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 list_install_components"/>
+					<CompileFile command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/gmake -f &quot;/home/mromans/Programming/CLion/CPP/Home/EZTools/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZHTTP.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZHTTPResponse.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZLinux.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZLogger.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZProc.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZScreen.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZString.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZSystemTime.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/include/EZUtils.h">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZHTTP.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZHTTPResponse.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZLinux.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZLogger.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZProc.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZScreen.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZString.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZSystemTime.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/src/EZUtils.cpp">
+			<Option target="EZTools"/>
+		</Unit>
+		<Unit filename="/home/mromans/Programming/CLion/CPP/Home/EZTools/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>

@@ -20,9 +20,11 @@ void EZHTTP::setUsernamePassword(EZString username, EZString password) {
 
 EZHTTPResponse EZHTTP::get(EZString URL) {
     thread_local EZString buffer;
+    thread_local EZString headerbuffer;
     thread_local CURL *conn = nullptr;
     thread_local char errorBuffer[CURL_ERROR_SIZE];
     thread_local EZHTTPResponse response;
+    thread_local long response_code;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
@@ -55,13 +57,24 @@ EZHTTPResponse EZHTTP::get(EZString URL) {
         }
     }
 
+    if (_isThereFlag) {
+        response.code(curl_easy_setopt(conn, CURLOPT_NOBODY, 1L));
+        if (response.code() != CURLE_OK) {
+            response.errorMessage(curlError(response.code()));
+            response.isSuccess(false);
+            return response;
+        }
+    }
+
     struct curl_slist *chunk = nullptr;
-    chunk = curl_slist_append(chunk, "Accept: application/geo+json;version=1");
-    response.code(curl_easy_setopt(conn, CURLOPT_HTTPHEADER, chunk));
-    if (response.code() != CURLE_OK) {
-        response.errorMessage(curlError(response.code()));
-        response.isSuccess(false);
-        return response;
+    for (auto & _header : _headers) {
+        chunk = curl_slist_append(chunk, _header.c_str());
+        response.code(curl_easy_setopt(conn, CURLOPT_HTTPHEADER, chunk));
+        if (response.code() != CURLE_OK) {
+            response.errorMessage(curlError(response.code()));
+            response.isSuccess(false);
+            return response;
+        }
     }
 
     response.code(curl_easy_setopt(conn, CURLOPT_USERAGENT, _userAgent.c_str()));
@@ -114,16 +127,28 @@ EZHTTPResponse EZHTTP::get(EZString URL) {
 
     curl_easy_cleanup(conn);
     if(response.code() != CURLE_OK) {
-        response.errorMessage(curlError(response.code()));
+        response.errorMessage(this->curlError(response.code()));
         response.isSuccess(false);
         return response;
     }
+    curl_easy_getinfo(conn, CURLINFO_RESPONSE_CODE, &response_code);
     response.data.value(buffer);
+    response.data.httpResponseCode(response_code);
     buffer = "";
-    response.isSuccess(true);
+    response.isSuccess(response_code <= 399);
     return response;
 }
 
 void EZHTTP::setHasRealCert(bool badWebsite) {
     _realCert = badWebsite;
+}
+
+void EZHTTP::addHeaderLine(EZString line) {
+    _headers.push_back(line);
+}
+
+bool EZHTTP::there(EZString uri) {
+    _isThereFlag = true;
+    EZHTTPResponse response = this->get(uri);
+    return response.isSuccess();
 }

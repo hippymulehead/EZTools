@@ -69,6 +69,22 @@ namespace fs = boost::filesystem;
 
 namespace EZLinux {
 
+    inline bool isReadable(const boost::filesystem::path& p) {
+        return access(p.generic_string().c_str(), R_OK) == 0;
+    }
+
+    inline bool isWritable(const boost::filesystem::path& p) {
+        return access(p.generic_string().c_str(), W_OK) == 0;
+    }
+
+    inline bool isExecutable(const boost::filesystem::path& p) {
+        return access(p.generic_string().c_str(), X_OK) == 0;
+    }
+
+    inline bool isThere(const boost::filesystem::path& p) {
+        return access(p.generic_string().c_str(), F_OK) == 0;
+    }
+
     inline string homedir() {
         const char *homedir;
 
@@ -76,24 +92,6 @@ namespace EZLinux {
             homedir = getpwuid(getuid())->pw_dir;
         }
         return homedir;
-    }
-
-    inline bool fileExists(EZString name) {
-        return (access(name.c_str(), F_OK) != -1);
-    }
-
-    inline bool copyFile(EZString SRC, EZString DEST, bool overwrite = false) {
-        if (!overwrite) {
-            if (fileExists(DEST)) { return false;}
-        }
-        ifstream src(SRC, ios::binary);
-        ofstream dest(DEST, ios::binary);
-        dest << src.rdbuf();
-        return src && dest;
-    }
-
-    inline bool deleteFile(EZString filenameFullPath) {
-        return remove(filenameFullPath.c_str()) == 0;
     }
 
     inline bool chownFile(EZString file_path, EZString user_name, EZString group_name) {
@@ -160,73 +158,73 @@ namespace EZLinux {
         return cCurrentPath;
     }
 
-    class FilePerms {
-    public:
-        FilePerms(EZString filename) {
-            _fn = filename;
-            fs::perms p = fs::status(_fn).permissions();
-            if (p & fs::perms::owner_read) {
-                _owner = _owner + 4;
-            }
-            if (p & fs::perms::owner_write) {
-                _owner = _owner + 2;
-            }
-            if (p & fs::perms::owner_exe) {
-                _owner = _owner + 1;
-            }
-            if (p & fs::perms::set_uid_on_exe) {
-                _stickyBit = _stickyBit + 4;
-            }
-            if (p & fs::perms::group_read) {
-                _group = _group + 4;
-            }
-            if (p & fs::perms::group_write) {
-                _group = _group + 2;
-            }
-            if (p & fs::perms::group_exe) {
-                _group = _group + 1;
-            }
-            if (p & fs::perms::set_gid_on_exe) {
-                _stickyBit = _stickyBit + 2;
-            }
-            if (p & fs::perms::others_read) {
-                _other = _other + 4;
-            }
-            if (p & fs::perms::others_write) {
-                _other = _other + 2;
-            }
-            if (p & fs::perms::others_exe) {
-                _other = _other + 1;
-            }
-        }
-
-        virtual ~FilePerms() = default;
-
-        int owner() { return _owner; }
-
-        int group() { return _group; }
-
-        int other() { return _other; }
-
-        int stickyBit() { return _stickyBit; }
-
-        EZString str() {
-            stringstream bs;
-            bs << _stickyBit << _owner << _group << _other;
-            return bs.str();
-        }
-
-        bool areEqualTo(int StickyBit, int Owner, int Group, int Other) {
-            return StickyBit != _stickyBit | Owner != _owner | Group != _group | Other != _other;
-        }
-
-    private:
-        int _owner = 0;
-        int _group = 0;
-        int _other = 0;
-        int _stickyBit = 0;
-        string _fn;
-    };
+//    class FilePerms {
+//    public:
+//        FilePerms(EZString filename) {
+//            _fn = filename;
+//            fs::perms p = fs::status(_fn).permissions();
+//            if (p & fs::perms::owner_read) {
+//                _owner = _owner + 4;
+//            }
+//            if (p & fs::perms::owner_write) {
+//                _owner = _owner + 2;
+//            }
+//            if (p & fs::perms::owner_exe) {
+//                _owner = _owner + 1;
+//            }
+//            if (p & fs::perms::set_uid_on_exe) {
+//                _stickyBit = _stickyBit + 4;
+//            }
+//            if (p & fs::perms::group_read) {
+//                _group = _group + 4;
+//            }
+//            if (p & fs::perms::group_write) {
+//                _group = _group + 2;
+//            }
+//            if (p & fs::perms::group_exe) {
+//                _group = _group + 1;
+//            }
+//            if (p & fs::perms::set_gid_on_exe) {
+//                _stickyBit = _stickyBit + 2;
+//            }
+//            if (p & fs::perms::others_read) {
+//                _other = _other + 4;
+//            }
+//            if (p & fs::perms::others_write) {
+//                _other = _other + 2;
+//            }
+//            if (p & fs::perms::others_exe) {
+//                _other = _other + 1;
+//            }
+//        }
+//
+//        virtual ~FilePerms() = default;
+//
+//        int owner() { return _owner; }
+//
+//        int group() { return _group; }
+//
+//        int other() { return _other; }
+//
+//        int stickyBit() { return _stickyBit; }
+//
+//        EZString str() {
+//            stringstream bs;
+//            bs << _stickyBit << _owner << _group << _other;
+//            return bs.str();
+//        }
+//
+//        bool areEqualTo(int StickyBit, int Owner, int Group, int Other) {
+//            return StickyBit != _stickyBit | Owner != _owner | Group != _group | Other != _other;
+//        }
+//
+//    private:
+//        int _owner = 0;
+//        int _group = 0;
+//        int _other = 0;
+//        int _stickyBit = 0;
+//        string _fn;
+//    };
 
 }
 

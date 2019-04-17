@@ -47,6 +47,8 @@ public:
         cc << _data;
         return cc;
     }
+    void httpResponseCode(long dat) { _HTTPResponseCode = dat; }
+    long httpResponseCode() { return _HTTPResponseCode; }
     Json::Value asJSONCPP() const {
         thread_local Json::Value root;
         stringstream d;
@@ -57,6 +59,7 @@ public:
 
 private:
     EZString _data;
+    long _HTTPResponseCode;
 };
 
 class EZHTTPResponse {

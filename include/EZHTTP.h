@@ -49,6 +49,9 @@ public:
     EZHTTPResponse get(EZString URL);
     void setUsernamePassword(EZString username, EZString password);
     void setHasRealCert(bool badWebsite);
+    vector<EZString> headers() { return _headers; }
+    void addHeaderLine(EZString line);
+    bool there(EZString uri);
 
 protected:
 
@@ -57,6 +60,8 @@ private:
     EZString _username;
     EZString _password;
     bool _realCert = true;
+    vector<EZString> _headers;
+    bool _isThereFlag = false;
 
     static size_t writer(char *data, size_t size, size_t nmemb, EZString *writerData) {
         if(writerData == nullptr)
@@ -102,6 +107,10 @@ private:
             default:
                 return "Other curl error, see response.code";
         }
+    }
+
+    void header_callback() {
+
     }
 };
 

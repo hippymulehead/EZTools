@@ -9,7 +9,7 @@ ENDIF()
 add_library(EZTools SHARED src/EZHTTP.cpp include/EZHTTP.h include/EZString.h include/EZHTTPResponse.h
         include/EZLinux.h include/EZLogger.h include/EZProc.h include/EZScreen.h include/EZSystemTime.h
         include/EZUtils.h src/EZHTTPResponse.cpp src/EZLinux.cpp src/EZLogger.cpp src/EZProc.cpp src/EZScreen.cpp
-        src/EZString.cpp src/EZSystemTime.cpp src/EZUtils.cpp)
+        src/EZString.cpp src/EZSystemTime.cpp src/EZUtils.cpp src/EZURI.cpp include/EZURI.h src/EZFileManager.cpp include/EZFileManager.h src/EZSTATUS.cpp include/EZSTATUS.h)
 
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREAD ON)
@@ -17,7 +17,7 @@ set(Boost_USE_MULTITHREAD ON)
 target_link_libraries(EZTools boost_regex boost_system boost_filesystem crypto curl)
 
 set(MAJOR "1")
-set(MINOR "4")
+set(MINOR "5")
 set(BUILD "0")
 set(CPACK_PACKAGE_VERSION "${MAJOR}.${MINOR}.${BUILD}")
 

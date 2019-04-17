@@ -1,0 +1,9 @@
+Package: libeztools
+Version: 0.1.1
+Section: devel
+Priority: optional
+Architecture: amd64
+Installed-Size: 1378
+Maintainer: Michael Romans
+Description: EZTools built using CMake
+

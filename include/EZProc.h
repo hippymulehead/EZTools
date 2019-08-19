@@ -39,6 +39,7 @@ using namespace EZTools;
 
 namespace EZProc {
 
+    //TODO: Add the Process List code
     struct SysLoad {
         float oneMin;
         float fiveMin;
@@ -120,6 +121,7 @@ namespace EZProc {
         int _rs = 0;
     };
 
+    //TODO: Split this into the CPP file
     class MemInfo {
     public:
         MemInfo() {
@@ -205,6 +207,7 @@ namespace EZProc {
         return sp.at(2);
     }
 
+    //TODO: Split this into the CPP file
     class CPUInfo {
     public:
         CPUInfo() {

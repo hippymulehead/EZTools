@@ -49,6 +49,8 @@ using namespace EZTools;
 using namespace EZLinux;
 using namespace EZHTTPFunctions;
 
+//TODO: Decide if this is staying or not.
+
 class EZURI {
 public:
     explicit EZURI(EZString uri);

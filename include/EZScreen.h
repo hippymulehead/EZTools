@@ -114,29 +114,6 @@ namespace EZScreen {
         EZString description;
     };
 
-    // Objects
-//    class EZHelpObject {
-//    public:
-//        explicit EZHelpObject(EZString programName, EZString version);
-//        ~EZHelpObject() = default;
-//        EZString programName() { return _programName; }
-//        void addCommandLineOption(EZString option, EZString description);
-//        void addCopyright(EZString copyright);
-//        void addExtraMessage(EZString extraMessage);
-//        void addFileOption() {_fileOption = true;}
-//        void showHelp();
-//        void showVersion();
-//        EZString getoptSwitches();
-//
-//    private:
-//        EZString _programName;
-//        vector<HelpOption> _helpOptions;
-//        EZString _copyright;
-//        EZString _extraMessage;
-//        EZString _version;
-//        bool _fileOption = false;
-//    };
-
     struct MenuOptions {
         EZString text;
         int optionNumber;

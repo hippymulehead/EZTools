@@ -27,8 +27,8 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the MRUtils project.
 */
 
-#ifndef ORPHANS_EZLOGGER_H
-#define ORPHANS_EZLOGGER_H
+#ifndef EZLOGGER_H
+#define EZLOGGER_H
 
 #include "EZTools.h"
 #include "EZLinux.h"
@@ -78,4 +78,4 @@ private:
     }
 };
 
-#endif //ORPHANS_EZLOGGER_H
+#endif //EZLOGGER_H

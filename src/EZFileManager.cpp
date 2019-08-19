@@ -1,263 +1,124 @@
 //
-// Created by mromans on 4/15/19.
+// Created by mromans on 6/24/19.
 //
 
-#include "../include/EZFileManager.h"
+#include "EZFileManager.h"
 
-EZSTATUS EZFileManager::copy(EZURI &URIToCopy, EZURI &URIToWrite, bool overwrite) {
-    EZSTATUS stat;
-    if (!URIToWrite.isLocal()) {
-        stat.type(CURRENTLY_NOT_IMPLEMENTED);
-        return stat;
-    }
-    if (!URIToCopy.readable()) {
-        stat.type(SOURCE_NOT_READABLE);
-        return stat;
-    } else if (URIToWrite.exists() & !overwrite) {
-        stat.type(WOULD_OVERWRITE_BUT_NOT_ALLOWED);
-        return stat;
-    }
-    if (!URIToCopy.isLocal() & URIToWrite.isLocal()) {
+EZURI::EZURI(EZString uri) {
+    _uri = uri;
+    if (uri.regexMatch("^/")) {
+        EZFileStat stat(uri);
+        _isThere = stat.isThere();
+        _isReadable = stat.isReadable();
+        _isWriteable = stat.isWriteable();
+        _locType = 1;
+    } else if (uri.regexMatch("^http")) {
         EZHTTP http;
-        if (URIToWrite.useragent().empty()) {
-            http.setUserAgent("EZFileManager v1.0 by Michael Romans of Romans Audio");
-        } else {
-            http.setUserAgent(URIToWrite.useragent());
-        }
-        http.setHasRealCert(URIToCopy.hasRealCert());
-        for (auto i = 0; i < URIToCopy.headers().size(); i++) {
-            http.addHeaderLine(URIToWrite.headers().at(i));
-        }
-        if (!URIToWrite.username().empty() & !URIToWrite.password().empty()) {
-            http.setUsernamePassword(URIToWrite.username(), URIToWrite.password());
-        }
-        EZHTTPResponse r = http.get(URIToCopy.uri());
-        if (r.isSuccess()) {
-            ofstream dest(URIToWrite.path().generic_string(), ios::binary);
-            dest << r.data.value();
-            dest.close();
-            if (dest) {
-                stat.type(SUCCESS);
-                return stat;
-            } else {
-                stat.type(UNKNOWN);
-                return stat;
-            }
-        } else {
-            stat.type(UNKNOWN);
-            return stat;
-        }
-    } else if (URIToCopy.isLocal() & URIToWrite.isLocal()) {
-        ifstream src(URIToCopy.path().generic_string(), ios::binary);
-        ofstream dest(URIToWrite.path().generic_string(), ios::binary);
-        dest << src.rdbuf();
-        src.close();
-        dest.close();
-        if (src && dest) {
-            stat.type(SUCCESS);
-            return stat;
-        } else {
-            stat.type(UNKNOWN);
-            return stat;
-        }
+        http.setUserAgent("EZFileManager v0.0.1 email:mromans@romansaudio.com");
+        _isThere = http.there(uri);
+        _isReadable = _isThere;
+        _isWriteable = false;
+        _locType = 0;
     }
-    stat.type(UNKNOWN);
-    return stat;
 }
 
-EZSTATUS EZFileManager::remove(EZURI &URIToDelete) {
-    EZSTATUS stat;
-    if (!URIToDelete.isLocal()) {
-        stat.type(FILE_NOT_LOCAL);
-        return stat;
-    }
-    if (!URIToDelete.exists()) {
-        stat.type(FILE_NOT_FOUND);
-        return stat;
-    }
-    const EZString s = URIToDelete.uri();
-    try {
-        boost::filesystem::remove(URIToDelete.path());
-    }
-    catch (boost::filesystem::filesystem_error &e) {
-        stat.type(PASSTHROUGH);
-        stat.emessage(e.what());
-        return stat;
-    }
-    stat.type(SUCCESS);
-    return stat;
-}
-
-EZSTATUS EZFileManager::move(EZURI &URIToMove, EZURI &URIToMoveTo) {
-    EZSTATUS stat;
-    stat = this->copy(URIToMove, URIToMoveTo);
-    if (!stat.success()) {
-        return stat;
-    }
-    stat = this->remove(URIToMove);
-    if (!stat.success()) {
-        return stat;
-    }
-    stat.type(SUCCESS);
-    return EZSTATUS();
-}
-
-EZSTATUS EZFileManager::backup(EZURI &URIToBackup, EZString newExtention) {
-    EZSTATUS stat;
-    if (!URIToBackup.isLocal()) {
-        stat.type(FILE_NOT_LOCAL);
-        return stat;
-    }
-    if (!URIToBackup.readable()) {
-        stat.type(SOURCE_NOT_READABLE);
-        return stat;
-    }
-    stringstream s;
-    s << URIToBackup.path().generic_string() << "." << newExtention;
-    EZURI backupfile(s.str());
-    stat = this->copy(URIToBackup,backupfile, true);
-    return stat;
-}
-
-EZSTATUS EZFileManager::readAsEZString(EZURI &URIToRead, EZString &storage) {
-    EZSTATUS stat;
-    if (!URIToRead.isLocal()) {
-        EZHTTP http;
-        if (URIToRead.useragent().empty()) {
-            http.setUserAgent("EZFileManager v1.0 by Michael Romans of Romans Audio");
+EZError EZFileManager::webCopy(EZURI websource, Json::Value &jsonRoot) {
+    _resp = EZHTTPResponse();
+    EZString data;
+    if (websource.locationType() == 0) {
+        if (!websource.isThere() || !websource.isReadable()) {
+            EZError retType("Source is not readable");
+            return retType;
+        }
+        EZHTTP http("EZFileManager v0.0.1 email:mromans@romansaudio.com");
+        _resp = http.get(websource.uri());
+        if (_resp.isSuccess()) {
+            jsonRoot = _resp.data.asJSONCPP();
         } else {
-            http.setUserAgent(URIToRead.useragent());
+            EZError retType("JSON Conversion failed");
+            return retType;
         }
-        http.setHasRealCert(URIToRead.hasRealCert());
-        for (auto i = 0; i < URIToRead.headers().size(); i++) {
-            http.addHeaderLine(URIToRead.headers().at(i));
-        }
-        if (!URIToRead.username().empty() & !URIToRead.password().empty()) {
-            http.setUsernamePassword(URIToRead.username(), URIToRead.password());
-        }
-        EZHTTPResponse r = http.get(URIToRead.uri());
-        if (r.isSuccess()) {
-            storage = r.data.value();
-            stat.type(SUCCESS);
-        } else {
-            stat.type(PASSTHROUGH);
-            stat.emessage(r.errorMessage());
-        }
-    }
-    if (URIToRead.isLocal()) {
-        ifstream src(URIToRead.path().generic_string(), ios::binary);
-        stringstream ss;
-        ss << src.rdbuf();
-        src.close();
-        if (src && 1) {
-            storage = ss.str();
-            stat.type(SUCCESS);
-        } else {
-            stat.type(UNKNOWN);
-        }
-    }
-    return stat;
-}
-
-EZSTATUS EZFileManager::readAsJsoncpp(EZURI &URIToRead, Json::Value &storage) {
-    EZSTATUS stat;
-    if (!URIToRead.isLocal()) {
-        EZHTTP http;
-        if (URIToRead.useragent().empty()) {
-            http.setUserAgent("EZFileManager v1.0 by Michael Romans of Romans Audio");
-        } else {
-            http.setUserAgent(URIToRead.useragent());
-        }
-        http.setHasRealCert(URIToRead.hasRealCert());
-        for (auto i = 0; i < URIToRead.headers().size(); i++) {
-            http.addHeaderLine(URIToRead.headers().at(i));
-        }
-        if (!URIToRead.username().empty() & !URIToRead.password().empty()) {
-            http.setUsernamePassword(URIToRead.username(), URIToRead.password());
-        }
-        EZHTTPResponse r = http.get(URIToRead.uri());
-        if (r.isSuccess()) {
-            stringstream d;
-            d << r.data.value();
-            d >> storage;
-            stat.type(SUCCESS);
-        } else {
-            stat.type(PASSTHROUGH);
-            stat.emessage(r.errorMessage());
-        }
-    }
-    if (URIToRead.isLocal()) {
-        ifstream src(URIToRead.path().generic_string(), ios::binary);
-        stringstream ss;
-        ss << src.rdbuf();
-        src.close();
-        if (src && 1) {
-            stringstream d;
-            d << ss.str();
-            d >> storage;
-            stat.type(SUCCESS);
-        } else {
-            stat.type(UNKNOWN);
-        }
-    }
-    return stat;
-}
-
-EZSTATUS EZFileManager::directoryContents(EZURI &URIDirectory, vector<EZURI> &storage, bool allFiles) {
-    EZSTATUS stat;
-    if (!URIDirectory.type() == EZdirectory) {
-        stat.type(NOT_A_DIRECTORY);
+        return EZError();
     } else {
-        for (boost::filesystem::directory_entry &x : boost::filesystem::directory_iterator(URIDirectory.path())) {
-            try {
-                EZURI f(x.path().generic_string());
-                if (f.exists()) {
-                    if (allFiles) {
-                        storage.push_back(f);
-                    } else {
-                        if (!f.filename().beginsWith(".")) {
-                            storage.push_back(f);
-                        }
-                    }
-                }
-                stat.type(SUCCESS);
-            } catch (const boost::filesystem::filesystem_error& ex) {
-                stat.type(PASSTHROUGH);
-                stat.emessage(ex.what());
-            }
+        EZError retType("Source is not a web based file");
+        return retType;
+    }
+}
+
+EZError EZFileManager::webCopy(EZURI websource, EZURI filedest, bool overwrite) {
+    _resp = EZHTTPResponse();
+    EZString data;
+    if (websource.locationType() == 0) {
+        if (!websource.isThere() || !websource.isReadable()) {
+            EZError ret(websource.uri()+" not found");
+            return ret;
         }
-    }
-    return stat;
-}
-
-EZSTATUS EZFileManager::changeOwnership(EZString resource, EZString username, EZString group) {
-    EZSTATUS stat;
-    uid_t          uid;
-    gid_t          gid;
-    struct passwd *pwd;
-    struct group  *grp;
-
-    pwd = getpwnam(username.c_str());
-    if (pwd == nullptr) {
-        stat.type(USERNAME_ERROR);
-        return stat;
-    }
-    uid = pwd->pw_uid;
-
-    grp = getgrnam(group.c_str());
-    if (grp == nullptr) {
-        stat.type(GROUP_ERROR);
-        return stat;
-    }
-    gid = grp->gr_gid;
-
-    int val = chown(resource.c_str(), uid, gid);
-    if (val == 0) {
-        stat.type(SUCCESS);
+        if (!overwrite && filedest.isThere()) {
+            EZError ret("Can't overwrite "+filedest.uri());
+            return ret;
+        }
+        if (overwrite && !filedest.isWriteable()) {
+            EZError ret(filedest.uri()+" not writeable");
+            return ret;
+        }
+        EZHTTP http("EZFileManager v0.0.1 email:mromans@romansaudio.com");
+        _resp = http.get(websource.uri());
+        if (_resp.isSuccess()) {
+            data = _resp.data.value();
+        } else {
+            EZError ret("Could not get "+websource.uri()+ " error: "+_resp.errorMessage());
+            return ret;
+        }
+        ofstream outfile(filedest.uri());
+        outfile << data;
+        outfile.close();
+        return EZError();
     } else {
-        stat.type(CHOWN_ERROR);
+        EZError ret(websource.uri()+" is not a web based file");
+        return ret;
     }
-    return stat;
 }
 
+EZError EZFileManager::fileCopy(EZURI filesource, EZURI filedest, bool overwrite) {
+    EZString data;
+    if (filesource.locationType() == 1) {
+        if (!filesource.isThere() || !filesource.isReadable()) {
+            EZError ret(filesource.uri()+" not found or not readable");
+            return ret;
+        }
+        if (!overwrite && filedest.isThere()) {
+            EZError ret(filedest.uri()+" is there but not allowed to overwrite");
+            return ret;
+        }
+        if (overwrite && !filedest.isWriteable()) {
+            EZError ret(filedest.uri()+" is not writeable");
+            return ret;
+        }
 
+        ofstream outfile(filedest.uri());
+        outfile << data;
+        outfile.close();
+        return EZError();
+    } else {
+        EZError ret(filesource.uri()+" is not a filesystem based file");
+        return ret;
+    }
+}
+
+EZError EZFileManager::fileMove(EZURI filesource, EZURI filedest, bool overwrite) {
+    if (!filesource.isWriteable()) {
+        EZError ret(filesource.uri()+" is not deletable");
+        return ret;
+    }
+    EZError ret = fileCopy(filesource, filedest, overwrite);
+    if (ret.isSuccess()) {
+        EZError dret = deleteFile(filesource.uri());
+        if (!dret.isSuccess()) {
+            EZError rett(filedest.uri()+" was overwritten but "+filesource.uri()+" failed to delete");
+            return rett;
+        }
+        return EZError();
+    } else {
+        return ret;
+    }
+}

@@ -2,31 +2,29 @@
 // Created by mromans on 12/7/18.
 //
 
-#include "../include/EZHTTP.h"
-#include <bits/stdc++.h>
+#include "EZHTTP.h"
 
-EZHTTP::EZHTTP(EZString userAgent) {
+EZHTTPFunctions::EZHTTP::EZHTTP(EZString userAgent) {
+    _userAgent = userAgent;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+}
+
+void EZHTTPFunctions::EZHTTP::setUserAgent(EZString userAgent) {
     _userAgent = userAgent;
 }
 
-void EZHTTP::setUserAgent(EZString userAgent) {
-    _userAgent = userAgent;
-}
-
-void EZHTTP::setUsernamePassword(EZString username, EZString password) {
+void EZHTTPFunctions::EZHTTP::setUsernamePassword(EZString username, EZString password) {
     _username = username;
     _password = password;
 }
 
-EZHTTPResponse EZHTTP::get(EZString URL) {
+EZHTTPFunctions::EZHTTPResponse EZHTTPFunctions::EZHTTP::get(EZString URL) {
     thread_local EZString buffer;
     thread_local EZString headerbuffer;
     thread_local CURL *conn = nullptr;
     thread_local char errorBuffer[CURL_ERROR_SIZE];
     thread_local EZHTTPResponse response;
     thread_local long response_code;
-
-    curl_global_init(CURL_GLOBAL_DEFAULT);
 
     conn = curl_easy_init();
     curl_easy_reset(conn);
@@ -37,7 +35,7 @@ EZHTTPResponse EZHTTP::get(EZString URL) {
         return response;
     }
 
-    if (URL.beginsWith("https://")) {
+    if (URL.regexMatch("^https://")) {
         response.code(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYHOST, _realCert));
         response.code(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, _realCert));
     }
@@ -119,11 +117,11 @@ EZHTTPResponse EZHTTP::get(EZString URL) {
         return response;
     }
 
-    auto start = high_resolution_clock::now();
+    EZDateTimeFunctions::EZTimer et;
+    et.start();
     response.code(curl_easy_perform(conn));
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<milliseconds>(stop - start);
-    response.responseTimeInMillis(duration.count());
+    et.stop();
+    response.responseTimeInMillis(et.asMillisenconds());
 
     curl_easy_cleanup(conn);
     if(response.code() != CURLE_OK) {
@@ -139,16 +137,30 @@ EZHTTPResponse EZHTTP::get(EZString URL) {
     return response;
 }
 
-void EZHTTP::setHasRealCert(bool badWebsite) {
+void EZHTTPFunctions::EZHTTP::setHasRealCert(bool badWebsite) {
     _realCert = badWebsite;
 }
 
-void EZHTTP::addHeaderLine(EZString line) {
+void EZHTTPFunctions::EZHTTP::addHeaderLine(EZString line) {
     _headers.push_back(line);
 }
 
-bool EZHTTP::there(EZString uri) {
+bool EZHTTPFunctions::EZHTTP::there(EZString uri) {
     _isThereFlag = true;
     EZHTTPResponse response = this->get(uri);
     return response.isSuccess();
 }
+
+Json::Value EZHTTPFunctions::EZHTTPDataType::asJSONCPP() const {
+    thread_local Json::Value root;
+    stringstream d;
+    d << _data;
+    d >> root;
+    return root;
+}
+
+//stringstream EZHTTPFunctions::EZHTTPDataType::asStringstream() const {
+//    stringstream cc;
+//    cc << _data;
+//    return cc;
+//}

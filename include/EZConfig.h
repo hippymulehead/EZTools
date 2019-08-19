@@ -27,55 +27,40 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the MRUtils project.
 */
 
-#ifndef ORPHANS_EZLOGGER_H
-#define ORPHANS_EZLOGGER_H
+#ifndef EZT_EZCONFIG_H
+#define EZT_EZCONFIG_H
 
+#include <string>
+#include <fstream>
+#include <streambuf>
+#if defined(DISTRO_fc)
+#include <json/json.h>
+#include <json/reader.h>
+#else
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/reader.h>
+#endif
 #include "EZTools.h"
 #include "EZLinux.h"
-#include "EZConfig.h"
-#include <iostream>
-#include <fstream>
 
-using namespace EZDateTimeFunctions;
+using namespace std;
 using namespace EZTools;
 using namespace EZLinux;
-using namespace std;
 
-enum EZLogLevel {
-    QUITE = 4,
-    CRITICAL = 3,
-    WARNING = 2,
-    INFO = 1,
-    DEBUG = 0
-};
-
-class EZLogger {
+class EZConfig {
 public:
-    EZLogger(EZString logFileName, EZLogLevel defaultLogLevel);
-    explicit EZLogger(EZString configFileName);
-    ~EZLogger();
-    void writeLevel(EZLogLevel writeLevel);
-    void tempLogLevel(EZLogLevel tempLogLevel);
-    void defaultLogLevel();
-    string LogLevelAsString();
+    explicit EZConfig(EZString filename);
+    ~EZConfig() = default;
+    bool isThere() { return _there; }
+    Json::Value jsonRoot;
+    void write();
 
 private:
-    ofstream _os;
-    ofstream _null;
-    EZLogLevel _defaultLogLevel;
-    EZLogLevel _currentLogLevel;
-    EZLogLevel _writeLevel;
-    EZString _logFileName;
-
-    template<typename T>
-    friend ostream& operator<<(EZLogger& log, T op) {
-        if (log._writeLevel >= log._currentLogLevel) {
-            EZSystemTime dt;
-            log._os << dt.ymdt() << " " << log.LogLevelAsString() << op;
-            return log._os;
-        }
-        return log._null;
-    }
+    EZKeyValueMap<EZString> _config;
+    bool _there = false;
+    EZString _filename;
+    EZString _file;
 };
 
-#endif //ORPHANS_EZLOGGER_H
+
+#endif //EZT_EZCONFIG_H

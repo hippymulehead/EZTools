@@ -30,92 +30,62 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZTOOLS_EZLINUX_H
 #define EZTOOLS_EZLINUX_H
 
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <pwd.h>
+#include <grp.h>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <regex>
-#include <unistd.h>
-#include <sys/types.h>
-#include <grp.h>
+#include <Poco/Path.h>
+#include <Poco/File.h>
+#include <Poco/Environment.h>
+#include <Poco/Timestamp.h>
+#include <Poco/Net/DNS.h>
 #include <pwd.h>
-#include <cstdio>
-#include <stdio.h>
-#include <stdlib.h>
-#include <boost/filesystem.hpp>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <ifaddrs.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/ioctl.h>
-#include <cstdio>
-#include <memory>
-#include <stdexcept>
-#include <array>
-#include <fcntl.h>
-#include <errno.h>
-#include <time.h>
-#include <stdarg.h>
-#include <syslog.h>
-#include <sstream>
 #include <fstream>
-#include "EZString.h"
-//#include "EZSystemTime.h"
+#include <streambuf>
+#include "EZTools.h"
 
 using namespace std;
-namespace fs = boost::filesystem;
+using namespace EZTools;
 
 namespace EZLinux {
 
-    inline bool isReadable(const boost::filesystem::path& p) {
-        return access(p.generic_string().c_str(), R_OK) == 0;
+    typedef vector<EZString> PATHSTOR;
+    enum EZSTATFILETYPE {UNK = 0, REG = 1, LNK = 2, DIR = 3, CHAR = 4, BLK = 5, FIFO = 6, SOCK = 7};
+
+    inline EZString homeDir() {
+        return Path::home();
     }
 
-    inline bool isWritable(const boost::filesystem::path& p) {
-        return access(p.generic_string().c_str(), W_OK) == 0;
+    inline EZString currentDir() {
+        return Path::current();
     }
 
-    inline bool isExecutable(const boost::filesystem::path& p) {
-        return access(p.generic_string().c_str(), X_OK) == 0;
+    inline EZString tempDir() {
+        return Path::temp();
     }
 
-    inline bool isThere(const boost::filesystem::path& p) {
-        return access(p.generic_string().c_str(), F_OK) == 0;
+    inline EZString nullDir() {
+        return Path::null();
     }
 
-    inline string homedir() {
-        const char *homedir;
-
-        if ((homedir = getenv("HOME")) == nullptr) {
-            homedir = getpwuid(getuid())->pw_dir;
-        }
-        return homedir;
+    inline EZString environmentVar(EZString name, EZString defaultValue = "") {
+        return Poco::Environment::get(name, defaultValue);
     }
 
-    inline bool chownFile(EZString file_path, EZString user_name, EZString group_name) {
-        uid_t          uid;
-        gid_t          gid;
-        struct passwd *pwd;
-        struct group  *grp;
-
-        pwd = getpwnam(user_name.c_str());
-        if (pwd == nullptr) {
-            return false;
-        }
-        uid = pwd->pw_uid;
-
-        grp = getgrnam(group_name.c_str());
-        if (grp == nullptr) {
-            return false;
-        }
-        gid = grp->gr_gid;
-
-        return chown(file_path.c_str(), uid, gid) != -1;
+    inline PATHSTOR path() {
+        EZString pstring = Poco::Environment::get("PATH");
+        PATHSTOR sp = pstring.split(":");
+        return sp;
     }
 
-    inline EZString systemHostname() {
+    inline EZString hostname() {
         char hn[254];
         gethostname(hn, 254);
         EZString hostname = hn;
@@ -137,94 +107,158 @@ namespace EZLinux {
         return un;
     }
 
-    inline EZString exec(const char *cmd) {
-        std::array<char, 128> buffer;
-        EZString result;
-        std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
-        if (!pipe) throw std::runtime_error("popen() failed!");
-        while (!feof(pipe.get())) {
-            if (fgets(buffer.data(), 128, pipe.get()) != nullptr)
-                result += buffer.data();
+    inline EZString exec(EZString command) {
+        FILE *fp;
+        stringstream output;
+        char path[1035];
+        fp = popen(command.c_str(), "r");
+        if (fp == nullptr) {
+            cout << "Failed to run " << command << endl;
+            exit(EXIT_FAILURE);
         }
-        return result;
+        while (fgets(path, sizeof(path)-1, fp) != nullptr) {
+            output << path;
+        }
+        pclose(fp);
+        return output.str();
     }
 
-    inline EZString workingDir() {
-        char cCurrentPath[FILENAME_MAX];
-        if (!getcwd(cCurrentPath, sizeof(cCurrentPath))) {
-            return "error";
+    inline EZError chownFile(EZString file_path, EZString user_name, EZString group_name) {
+        uid_t          uid;
+        gid_t          gid;
+        struct passwd *pwd;
+        struct group  *grp;
+        pwd = getpwnam(user_name.c_str());
+        if (pwd == nullptr) {
+            EZError ret("Could not chown "+file_path+" "+user_name+":"+group_name);
+            return ret;
         }
-        cCurrentPath[sizeof(cCurrentPath) - 1] = '\0';
-        return cCurrentPath;
+        uid = pwd->pw_uid;
+        grp = getgrnam(group_name.c_str());
+        if (grp == nullptr) {
+            EZError ret("Could not chown "+file_path+" "+user_name+":"+group_name);
+            return ret;
+        }
+        gid = grp->gr_gid;
+        if (chown(file_path.c_str(), uid, gid) != -1) {
+            return EZError();
+        }
+        EZError ret("Could not chown "+file_path+" "+user_name+":"+group_name);
+        return  ret;
     }
 
-//    class FilePerms {
-//    public:
-//        FilePerms(EZString filename) {
-//            _fn = filename;
-//            fs::perms p = fs::status(_fn).permissions();
-//            if (p & fs::perms::owner_read) {
-//                _owner = _owner + 4;
-//            }
-//            if (p & fs::perms::owner_write) {
-//                _owner = _owner + 2;
-//            }
-//            if (p & fs::perms::owner_exe) {
-//                _owner = _owner + 1;
-//            }
-//            if (p & fs::perms::set_uid_on_exe) {
-//                _stickyBit = _stickyBit + 4;
-//            }
-//            if (p & fs::perms::group_read) {
-//                _group = _group + 4;
-//            }
-//            if (p & fs::perms::group_write) {
-//                _group = _group + 2;
-//            }
-//            if (p & fs::perms::group_exe) {
-//                _group = _group + 1;
-//            }
-//            if (p & fs::perms::set_gid_on_exe) {
-//                _stickyBit = _stickyBit + 2;
-//            }
-//            if (p & fs::perms::others_read) {
-//                _other = _other + 4;
-//            }
-//            if (p & fs::perms::others_write) {
-//                _other = _other + 2;
-//            }
-//            if (p & fs::perms::others_exe) {
-//                _other = _other + 1;
-//            }
-//        }
-//
-//        virtual ~FilePerms() = default;
-//
-//        int owner() { return _owner; }
-//
-//        int group() { return _group; }
-//
-//        int other() { return _other; }
-//
-//        int stickyBit() { return _stickyBit; }
-//
-//        EZString str() {
-//            stringstream bs;
-//            bs << _stickyBit << _owner << _group << _other;
-//            return bs.str();
-//        }
-//
-//        bool areEqualTo(int StickyBit, int Owner, int Group, int Other) {
-//            return StickyBit != _stickyBit | Owner != _owner | Group != _group | Other != _other;
-//        }
-//
-//    private:
-//        int _owner = 0;
-//        int _group = 0;
-//        int _other = 0;
-//        int _stickyBit = 0;
-//        string _fn;
-//    };
+    class EZFileStat {
+    public:
+        EZFileStat(EZString filename);
+        ~EZFileStat() = default;
+        int owner() { return _owner; }
+        int group() { return _group; }
+        int other() { return _other; }
+        long size() { return _size; }
+        EZSTATFILETYPE fileType();
+        EZString fileTypeAsStr();
+        int links() { return _links; }
+        int inode() { return _inode; }
+        int hardLinks() { return _hlinks; }
+        int fileOwnerID() { return _fowner; }
+        int fileGroupID() { return _gowner; }
+        int deviceID() { return _devid; }
+        int blockSize() { return _blocksize; }
+        int numberOfBlocks() { return _blocks; }
+        bool isThere() { return _isThere; }
+        bool isReadable() { return _isReadable; }
+        bool isWriteable() { return _isWriteable; }
+        EZString permsAsStr();
+        int permsAsInt();
+
+    private:
+        Poco::Path _path;
+        Poco::File _file;
+        bool _isReadable;
+        bool _isWriteable;
+        bool _isThere;
+        int _owner = 0;
+        int _group = 0;
+        int _other = 0;
+        long _size;
+        long _links;
+        long _hlinks;
+        long _inode;
+        int _fowner;
+        int _gowner;
+        int _devid;
+        int _blocksize;
+        int _blocks;
+        int _FT = 0;
+        string _fn;
+    };
+
+    inline EZString readFile(EZString filename) {
+        EZFileStat stat(filename);
+        EZString contents = "";
+        if (stat.isThere() && stat.isReadable()) {
+            ifstream t(filename);
+            stringstream buffer;
+            buffer << t.rdbuf();
+            contents = buffer.str();
+            return contents;
+        } else {
+            return contents;
+        }
+    }
+
+    inline EZError copyFile(EZString source, EZString destination, bool overwrite = false) {
+        EZFileStat sf(source);
+        EZFileStat df(destination);
+        if (!sf.isThere() || !sf.isReadable()) {
+            EZError ret(source+" is not readable");
+            return ret;
+        }
+        if (!overwrite && df.isThere()) {
+            EZError ret(destination+" is there but can't be overwritten");
+            return ret;
+        }
+        if (overwrite && df.isThere() && !df.isWriteable()) {
+            EZError ret(destination+" is not writeable");
+            return ret;
+        }
+        ifstream sourcef(source, ios::binary);
+        ofstream destf(destination, ios::binary);
+        destf << sourcef.rdbuf();
+        sourcef.close();
+        destf.close();
+        return EZError();
+    }
+
+    inline EZError moveFile(EZString source, EZString destination, bool overwrite = false) {
+        EZFileStat stat(source);
+        if (!stat.isWriteable()) {
+            EZError ret(source+" can not be removed");
+            return ret;
+        }
+        EZError ret = copyFile(source, destination, overwrite);
+        if (!ret.isSuccess()) {
+            return ret;
+        }
+        if (remove(source.c_str()) == 0) {
+            return EZError();
+        }
+        EZError rett(source+" is writeable but can not be removed");
+        return rett;
+    }
+
+    inline EZError deleteFile(EZString fileToDelete) {
+        EZFileStat fn(fileToDelete);
+        if (!fn.isThere() || !fn.isReadable()) {
+            EZError ret(fileToDelete+" is not there or not readable");
+            return ret;
+        }
+        if (remove(fileToDelete.c_str()) == 0) {
+            return EZError();
+        }
+        EZError rett(fileToDelete+" is readable but can not be removed");
+        return rett;
+    }
 
 }
 

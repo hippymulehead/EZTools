@@ -1,8 +1,0 @@
-/home/mromans/bin/clion-2019.1/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/mromans/Programming/CLion/GitHub/EZTools
-ln: failed to create symbolic link 'libEZTools.so.1.5': File exists
-ln: failed to create symbolic link 'libEZTools.so.1': File exists
-ln: failed to create symbolic link '/home/mromans/Programming/CLion/GitHub/EZTools/libEZTools.so.1': File exists
-/sbin/ldconfig.real: relative path `COMPONENT' used to build cache
--- Configuring done
--- Generating done
--- Build files have been written to: /home/mromans/Programming/CLion/GitHub/EZTools

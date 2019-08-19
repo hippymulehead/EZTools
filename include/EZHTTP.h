@@ -27,91 +27,132 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the MRUtils project.
 */
 
-#ifndef EZTOOLS_EZHTTP_H
-#define EZTOOLS_EZHTTP_H
+#ifndef CPPRESTTEST_EZHTTP_H
+#define CPPRESTTEST_EZHTTP_H
 
 #include <iostream>
 #include <curl/curl.h>
-#include "EZString.h"
+#if defined(DISTRO_fc)
+#include <json/json.h>
+#include <json/reader.h>
+#else
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/reader.h>
+#endif
+#include <bits/stdc++.h>
+#include <sstream>
 #include <thread>
-#include <chrono>
-#include "EZHTTPResponse.h"
+#include "EZTools.h"
 
 using namespace std;
-using namespace std::chrono;
+using namespace EZTools;
 
-class EZHTTP {
-public:
-    EZHTTP() = default;
-    explicit EZHTTP(EZString userAgent);
-    virtual ~EZHTTP() = default;
-    void setUserAgent(EZString userAgent);
-    EZHTTPResponse get(EZString URL);
-    void setUsernamePassword(EZString username, EZString password);
-    void setHasRealCert(bool badWebsite);
-    vector<EZString> headers() { return _headers; }
-    void addHeaderLine(EZString line);
-    bool there(EZString uri);
+namespace EZHTTPFunctions {
 
-protected:
+    class EZHTTPDataType {
+    public:
+        void value(EZString dat) { _data = dat; }
+        EZString value() { return _data; }
+        //stringstream asStringstream() const;
+        void httpResponseCode(long dat) { _HTTPResponseCode = dat; }
+        long httpResponseCode() { return _HTTPResponseCode; }
+        Json::Value asJSONCPP() const;
 
-private:
-    EZString _userAgent;
-    EZString _username;
-    EZString _password;
-    bool _realCert = true;
-    vector<EZString> _headers;
-    bool _isThereFlag = false;
+    private:
+        EZString _data;
+        long _HTTPResponseCode;
+    };
 
-    static size_t writer(char *data, size_t size, size_t nmemb, EZString *writerData) {
-        if(writerData == nullptr)
-            return 0;
-        writerData->append(data, size*nmemb);
-        return size * nmemb;
-    }
+    class EZHTTPResponse {
+    public:
+        EZHTTPResponse() = default;
+        virtual ~EZHTTPResponse() = default;
+        bool isSuccess() { return _isSuccess; }
+        void isSuccess(bool tf) { _isSuccess = tf; }
+        CURLcode code() { return _code; }
+        void code(CURLcode c) { _code = c; }
+        EZString errorMessage() { return _errorMessage; }
+        void errorMessage(EZString error) { _errorMessage = error; }
+        EZHTTPDataType data;
+        int responseTimeInMillis() { return _responseTime; }
+        void responseTimeInMillis(int millis) { _responseTime = millis; }
 
-    EZString curlError(CURLcode code) {
-        switch(code) {
-            case CURLE_UNSUPPORTED_PROTOCOL:
-                return "Protocol not supported";
-            case CURLE_FAILED_INIT:
-                return "Very early initialization code failed";
-            case CURLE_URL_MALFORMAT:
-                return "The URL was not properly formatted";
-            case CURLE_COULDNT_RESOLVE_HOST:
-                return "Couldn't resolve host";
-            case CURLE_COULDNT_CONNECT:
-                return "Failed to connect() to host or proxy";
-            case CURLE_REMOTE_ACCESS_DENIED:
-                return "Denied access to the resource given in the URL";
+    private:
+        bool _isSuccess = false;
+        CURLcode _code = CURLE_OK;
+        int _responseTime = 0;
+        EZString _errorMessage;
+    };
+
+    class EZHTTP {
+    public:
+        EZHTTP() = default;
+        explicit EZHTTP(EZString userAgent);
+        virtual ~EZHTTP() = default;
+        void setUserAgent(EZString userAgent);
+        EZHTTPResponse get(EZString URL);
+        void setUsernamePassword(EZString username, EZString password);
+        void setHasRealCert(bool badWebsite);
+        vector<EZString> headers() { return _headers; }
+        void addHeaderLine(EZString line);
+        bool there(EZString uri);
+
+    protected:
+
+    private:
+        EZString _userAgent;
+        EZString _username;
+        EZString _password;
+        bool _realCert = true;
+        vector<EZString> _headers;
+        bool _isThereFlag = false;
+
+        static size_t writer(char *data, size_t size, size_t nmemb, EZString *writerData) {
+            if (writerData == nullptr)
+                return 0;
+            writerData->append(data, size * nmemb);
+            return size * nmemb;
+        }
+
+        EZString curlError(CURLcode code) {
+            switch (code) {
+                case CURLE_UNSUPPORTED_PROTOCOL:
+                    return "Protocol not supported";
+                case CURLE_FAILED_INIT:
+                    return "Very early initialization code failed";
+                case CURLE_URL_MALFORMAT:
+                    return "The URL was not properly formatted";
+                case CURLE_COULDNT_RESOLVE_HOST:
+                    return "Couldn't resolve host";
+                case CURLE_COULDNT_CONNECT:
+                    return "Failed to connect() to host or proxy";
+                case CURLE_REMOTE_ACCESS_DENIED:
+                    return "Denied access to the resource given in the URL";
 //            case CURLE_HTTP2:
 //                return "A problem was detected in the HTTP2 framing layer";
-            case CURLE_OUT_OF_MEMORY:
-                return "A memory allocation request failed";
-            case CURLE_OPERATION_TIMEDOUT:
-                return "Operation timeout";
-            case CURLE_SSL_CONNECT_ERROR:
-                return "A problem occurred somewhere in the SSL/TLS handshake";
-            case CURLE_FUNCTION_NOT_FOUND:
-                return "Function not found. A required zlib function was not found.";
-            case CURLE_BAD_FUNCTION_ARGUMENT:
-                return "Internal error. A function was called with a bad parameter.";
-            case CURLE_INTERFACE_FAILED:
-                return "Interface error";
-            case CURLE_TOO_MANY_REDIRECTS:
-                return "Too many redirects";
-            case CURLE_GOT_NOTHING:
-                return "Got nothing from the server";
+                case CURLE_OUT_OF_MEMORY:
+                    return "A memory allocation request failed";
+                case CURLE_OPERATION_TIMEDOUT:
+                    return "Operation timeout";
+                case CURLE_SSL_CONNECT_ERROR:
+                    return "A problem occurred somewhere in the SSL/TLS handshake";
+                case CURLE_FUNCTION_NOT_FOUND:
+                    return "Function not found. A required zlib function was not found.";
+                case CURLE_BAD_FUNCTION_ARGUMENT:
+                    return "Internal error. A function was called with a bad parameter.";
+                case CURLE_INTERFACE_FAILED:
+                    return "Interface error";
+                case CURLE_TOO_MANY_REDIRECTS:
+                    return "Too many redirects";
+                case CURLE_GOT_NOTHING:
+                    return "Got nothing from the server";
 //            case CURLE_HTTP2_STREAM:
 //                return "Stream error in the HTTP/2 framing layer.";
-            default:
-                return "Other curl error, see response.code";
+                default:
+                    return "Other curl error, see response.code";
+            }
         }
-    }
-
-    void header_callback() {
-
-    }
+    };
 };
 
-#endif //EZTOOLS_EZHTTP_H
+#endif //CPPRESTTEST_EZHTTP_H

@@ -27,29 +27,58 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the MRUtils project.
 */
 
-#ifndef FILESYSTEM_EZFILEMANAGER_H
-#define FILESYSTEM_EZFILEMANAGER_H
+#ifndef WEBTO_EZFILEMANAGER_H
+#define WEBTO_EZFILEMANAGER_H
 
+#include <fstream>
+#include <iostream>
+#include "EZLinux.h"
+#include "EZHTTP.h"
+#include "EZTools.h"
+
+#if defined(DISTRO_fc)
+#include <json/json.h>
+#include <json/reader.h>
+#else
+#include <jsoncpp/json/json.h>
 #include <jsoncpp/json/reader.h>
-#include <vector>
-#include <unistd.h>
-#include "EZURI.h"
-#include "EZSTATUS.h"
+#endif
 
 using namespace std;
+using namespace EZTools;
+using namespace EZLinux;
+using namespace EZHTTPFunctions;
+
+class EZURI {
+public:
+    explicit EZURI(EZString uri);
+    ~EZURI() = default;
+    bool isThere() { return _isThere; }
+    bool isReadable() { return _isReadable; }
+    bool isWriteable() { return _isWriteable; }
+    int locationType() { return _locType; }
+    EZString uri() { return _uri; }
+
+private:
+    EZString _uri;
+    bool _isThere;
+    bool _isReadable;
+    bool _isWriteable;
+    int _locType; // 0 = web, 1 = file;
+};
 
 class EZFileManager {
 public:
     EZFileManager() = default;
-    virtual ~EZFileManager() = default;
-    EZSTATUS copy(EZURI &URIToCopy, EZURI &URIToWrite, bool overwrite = false);
-    EZSTATUS move(EZURI &URIToMove, EZURI &URIToMoveTo);
-    EZSTATUS remove(EZURI &URIToDelete);
-    EZSTATUS backup(EZURI &URIToBackup, EZString newExtention);
-    EZSTATUS readAsEZString(EZURI &URIToRead, EZString &storage);
-    EZSTATUS readAsJsoncpp(EZURI &URIToRead, Json::Value &storage);
-    EZSTATUS directoryContents(EZURI &URIDirectory, vector<EZURI> &storage, bool allFiles = false);
-    EZSTATUS changeOwnership(EZString resource, EZString username, EZString group);
+    ~EZFileManager() = default;
+    EZError webCopy(EZURI websource, Json::Value &jsonRoot);
+    EZError webCopy(EZURI websource, EZURI filedest, bool overwrite = false);
+    EZError fileCopy(EZURI filesource, EZURI filedest, bool overwrite = false);
+    EZError fileMove(EZURI filesource, EZURI filedest, bool overwrite = false);
+
+private:
+    EZHTTPResponse _resp;
 };
 
-#endif //FILESYSTEM_EZFILEMANAGER_H
+
+#endif //WEBTO_EZFILEMANAGER_H

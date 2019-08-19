@@ -33,7 +33,9 @@ either expressed or implied, of the MRUtils project.
 #include <vector>
 #include <fstream>
 #include <sstream>
-#include "EZString.h"
+#include "EZTools.h"
+
+using namespace EZTools;
 
 namespace EZProc {
 
@@ -41,6 +43,9 @@ namespace EZProc {
         float oneMin;
         float fiveMin;
         float fifteenMin;
+        SysLoad() : oneMin(0.0), fiveMin(0.0), fifteenMin(0.0) {
+
+        }
     };
 
     inline SysLoad loadavg() {
@@ -49,7 +54,7 @@ namespace EZProc {
         if (file.is_open()) {
             EZString line;
             while (getline(file, line)) {
-                vector<EZString> la = line.splitBy(" ");
+                vector<EZString> la = line.split(" ");
                 loadA.oneMin = la.at(0).asFloat();
                 loadA.fiveMin = la.at(1).asFloat();
                 loadA.fifteenMin = la.at(2).asFloat();
@@ -87,29 +92,32 @@ namespace EZProc {
         EZString address_sizes;
         EZString power_management;
         bool hyperthreading;
+        CPUs() : processor(0), vender_id(""), cpu_family(0), model(0), model_name(""), stepping(0), microcode(""),
+            cpu_mhz(0.0), cache_size(""), physical_id(0), siblings(0), core_id(0), cpu_cores(0), apicid(0),
+            initial_apicid(0), fpu(false), fpu_exception(false), cpuid_level(0), wp(false), flags(""), bugs(""),
+            bogomips(0.0), clflush_size(0), address_sizes(""), power_management(""), hyperthreading(false),
+            cache_alignment(0) {
+
+        }
     };
 
     class RAMSize {
     public:
         RAMSize() = default;
-
         virtual ~RAMSize() = default;
-
-        int operator=(int s) {
+        RAMSize& operator=(int s) {
             _rs = s;
-            return _rs;
+            return *this;
         }
-
         float asMegs() {
             return static_cast< float >(_rs) / 1024;
         }
-
         float asGigs() {
             return static_cast< float >(_rs) / 1024 / 1024;
         }
 
     private:
-        int _rs;
+        int _rs = 0;
     };
 
     class MemInfo {
@@ -121,31 +129,29 @@ namespace EZProc {
             cpufile << inFile.rdbuf();
             EZString line1 = cpufile.str();
             inFile.close();
-            vector<EZString> lines = line1.splitBy("\n");
-            for (auto i = 0; i < lines.size(); i++) {
-                lines.at(i) = lines.at(i).replaceAll(" ", "");
-                lines.at(i) = lines.at(i).replaceAll("kB", "");
-                if (lines.at(i).beginsWith("MemTotal:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+            vector<EZString> lines = line1.split("\n");
+            for (auto & line : lines) {
+                line = line.regexReplace(" ","");
+                line = line.regexReplace("kB", "");
+                if (line.regexMatch("^MemTotal:")) {
+                    vector<EZString> sp = line.split(":");
                     _total = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("MemFree:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^MemFree:")) {
+                    vector<EZString> sp = line.split(":");
                     _free = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("MemAvailable:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^MemAvailable:")) {
+                    vector<EZString> sp = line.split(":");
                     _available = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("SwapTotal:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^SwapTotal:")) {
+                    vector<EZString> sp = line.split(":");
                     _totalSwap = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("SwapFree:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^SwapFree:")) {
+                    vector<EZString> sp = line.split(":");
                     _freeSwap = sp.at(1).asInt();
                 }
             }
         }
-
         virtual ~MemInfo() = default;
-
         void update() {
             ifstream inFile;
             inFile.open("/proc/meminfo");
@@ -153,37 +159,32 @@ namespace EZProc {
             cpufile << inFile.rdbuf();
             EZString line1 = cpufile.str();
             inFile.close();
-            vector<EZString> lines = line1.splitBy("\n");
-            for (auto i = 0; i < lines.size(); i++) {
-                lines.at(i) = lines.at(i).replaceAll(" ", "");
-                lines.at(i) = lines.at(i).replaceAll("kB", "");
-                if (lines.at(i).beginsWith("MemTotal:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+            vector<EZString> lines = line1.split("\n");
+            for (auto & line : lines) {
+                line = line.regexReplace(" ", "");
+                line = line.regexReplace("kB", "");
+                if (line.regexMatch("^MemTotal:")) {
+                    vector<EZString> sp = line.split(":");
                     _total = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("MemFree:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^MemFree:")) {
+                    vector<EZString> sp = line.split(":");
                     _free = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("MemAvailable:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^MemAvailable:")) {
+                    vector<EZString> sp = line.split(":");
                     _available = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("SwapTotal:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^SwapTotal:")) {
+                    vector<EZString> sp = line.split(":");
                     _totalSwap = sp.at(1).asInt();
-                } else if (lines.at(i).beginsWith("SwapFree:")) {
-                    vector<EZString> sp = lines.at(i).splitBy(":");
+                } else if (line.regexMatch("^SwapFree:")) {
+                    vector<EZString> sp = line.split(":");
                     _freeSwap = sp.at(1).asInt();
                 }
             }
         }
-
         RAMSize total() { return _total; }
-
         RAMSize free() { return _free; }
-
         RAMSize available() { return _available; }
-
         RAMSize swapTotal() { return _totalSwap; }
-
         RAMSize swapFree() { return _freeSwap; }
 
     private:
@@ -196,14 +197,12 @@ namespace EZProc {
 
     inline EZString kernelVersion() {
         ifstream inFile;
-        inFile.open("/proc/version_signature");
+        inFile.open("/proc/version");
         stringstream versig;
         versig << inFile.rdbuf();
         EZString line = versig.str();
-        line = line.replaceAll("\n", "");
-        vector<EZString> sp = line.splitBy(" ");
-        auto s = sp.size() - 1;
-        return sp.at(s);
+        vector<EZString> sp = line.split(" ");
+        return sp.at(2);
     }
 
     class CPUInfo {
@@ -215,19 +214,19 @@ namespace EZProc {
             inFile.open("/proc/cpuinfo");
             stringstream cpufile;
             cpufile << inFile.rdbuf();
-            EZString line = cpufile.str();
+            EZString line1 = cpufile.str();
             inFile.close();
-            vector<EZString> lines = line.splitBy("\n");
+            vector<EZString> lines = line1.split("\n");
             for (auto &line : lines) {
                 if (!line.empty()) {
                     line = line.regexReplace("\t", "");
                     vector<EZString> sp;
-                    if (line.includes(": ")) {
-                        sp = line.splitBy(": ");
+                    if (line.regexMatch(": ")) {
+                        sp = line.split(": ");
                     } else {
-                        sp = line.splitBy(":");
+                        sp = line.split(":");
                     }
-                    sp.at(0) = sp.at(0).replaceAll(" ", "_");
+                    sp.at(0) = sp.at(0).regexReplace(" ", "_");
                     if (sp.at(0) == "power_management") {
                         cpu.power_management = sp.at(1);
                         if (cpu.processor == 0) {
@@ -295,9 +294,7 @@ namespace EZProc {
                 }
             }
         }
-
         virtual ~CPUInfo() = default;
-
         vector<CPUs> cpu() { return _cpus; }
 
     private:

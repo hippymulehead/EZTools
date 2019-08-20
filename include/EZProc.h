@@ -34,19 +34,52 @@ either expressed or implied, of the MRUtils project.
 #include <fstream>
 #include <sstream>
 #include "EZTools.h"
+#include "EZLinux.h"
 
 using namespace EZTools;
+using namespace EZLinux;
 
 namespace EZProc {
+
+    struct EZProcess {
+        EZString UID;
+        int PID;
+        int PPID;
+        int C;
+        EZString STIME;
+        EZString TTY;
+        EZString TIME;
+        EZString CMD;
+        EZString BASECMD;
+        EZProcess(EZString uid,int pid,int ppid,int c,EZString stime,EZString tty,EZString ptime,EZString cmd,
+                EZString basecmd) : UID(move(uid)),PID(pid),PPID(ppid),C(c),STIME(move(stime)),TTY(move(tty)),
+                TIME(move(ptime)),CMD(move(cmd)),BASECMD(move(basecmd)) {};
+        EZProcess() :
+                UID(""),PID(0),PPID(0),C(0),STIME(""),TTY(""),TIME(""),CMD(""),BASECMD("") {};
+    };
+
+    class EZProcessList {
+    public:
+        EZProcessList();
+        ~EZProcessList() = default;
+        void updateProcessList();
+        vector<EZProcess> procs() { return _processes; }
+        vector<EZProcess> uid(EZString uid);
+        EZProcess pid(int pid);
+        vector<EZProcess> ppid(int ppid);
+        vector<EZProcess> baseCmd(EZString baseCmd);
+        vector<EZProcess> baseCmdRegexMatch(EZString baseCmd);
+
+    private:
+        vector<EZProcess> _processes;
+    };
 
     //TODO: Add the Process List code
     struct SysLoad {
         float oneMin;
         float fiveMin;
         float fifteenMin;
-        SysLoad() : oneMin(0.0), fiveMin(0.0), fifteenMin(0.0) {
-
-        }
+        SysLoad() : oneMin(0.0), fiveMin(0.0), fifteenMin(0.0) {}
     };
 
     inline SysLoad loadavg() {

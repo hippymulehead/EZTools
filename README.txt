@@ -45,6 +45,7 @@ EZScreen.h
         EZScreenControl - a more simple way of doing cursor movement and color without the need for termcap
 EZProc.h
     namespace EZProc
+        EZProcessList - List running processes
         loadavg - gets the load avg
         MemInfo - gets info about the memory in the system
         kernelVersion - gets the running kernel version

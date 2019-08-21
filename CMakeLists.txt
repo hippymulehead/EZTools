@@ -15,7 +15,7 @@ set(EZTOOLS_LIBS include/EZConfig.h src/EZConfig.cpp include/EZHTTP.h src/EZHTTP
 add_library(eztools SHARED ${EZTOOLS_LIBS})
 
 ## STATIC LIB
-# add_library(eztools ${EZTOOLS_LIBS})
+#add_library(eztools ${EZTOOLS_LIBS})
 
 target_include_directories(eztools PUBLIC include)
 
@@ -26,8 +26,8 @@ install(DIRECTORY include/ DESTINATION /usr/include/EZTools)
 
 # Version Info 1
 set(PROJECT_VERSION_MAJOR "2")
-set(PROJECT_VERSION_MINOR "2")
-set(PROJECT_VERSION_PATCH "1")
+set(PROJECT_VERSION_MINOR "1")
+set(PROJECT_VERSION_PATCH "10")
 set(CPACK_PACKAGE_RELEASE 1)
 set(PROJECT_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 

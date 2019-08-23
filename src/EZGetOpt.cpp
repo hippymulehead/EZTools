@@ -4,16 +4,7 @@
 
 #include "EZGetOpt.h"
 
-
-void EZGetOpt::EZOptPairMap::insert(char key, EZString value) {
-    _map.insert(pair<char, EZString>(key, value));
-}
-
-EZString EZGetOpt::EZOptPairMap::valueForKey(char key) {
-    return _map[key];
-}
-
-EZGetOpt::GetOpt::GetOpt(int &argc, char* argv[], EZString programName, EZString version) {
+EZGetOpt::GetOpt::GetOpt(int argc, char* argv[], EZString programName, EZString version) {
     _programName = programName;
     _version = version;
     std::vector<EZString> arguments(argv + 1, argv + argc);
@@ -21,7 +12,7 @@ EZGetOpt::GetOpt::GetOpt(int &argc, char* argv[], EZString programName, EZString
 }
 
 void EZGetOpt::GetOpt::addCommandLineOption(EZString option, EZString description) {
-    _options.insert(option, description);
+    _options.insert(pair<EZString, EZString>(option, description));
 }
 
 void EZGetOpt::GetOpt::addCopyright(EZString copyright) {
@@ -33,21 +24,17 @@ void EZGetOpt::GetOpt::addExtraMessage(EZString extraMessage) {
 }
 
 void EZGetOpt::GetOpt::showHelp() {
-    cout << endl << _programName << " " << _version << " " << _copyright << endl;
+    cout << endl << _programName << " v" << _version << " " << _copyright << endl;
     if (!_extraMessage.empty()) {
         cout << _extraMessage << endl;
     }
     cout << "Help: " << _programName << " <";
-    for (auto &option : _options.data) {
-        cout << option.opt();
+    for (auto& op : _options) {
+        cout << op.first;
     }
-    cout << "> ";
-    if (_fileOption) {cout << "<Filename ...>"; }
-    cout << endl;
-
-    // Show Options
-    for (auto &option : _options.data) {
-        cout << "  " << option.opt() << "\t: " << option.description() << endl;
+    cout << ">" << endl;
+    for (auto& op : _options) {
+        cout << "  " << op.first << " \t" << op.second << endl;
     }
     cout << endl;
 }
@@ -56,66 +43,49 @@ void EZGetOpt::GetOpt::showVersion() {
     cout << endl << _programName << " " << _version << endl << endl;
 }
 
-void EZGetOpt::GetOptData::insert(EZString opt, EZString description) {
-    GODat g;
-    g.opt(opt);
-    g.description(description);
-    data.emplace_back(g);
-}
-
-EZGetOpt::EZOpts EZGetOpt::GetOpt::processedOptions() {
+void EZGetOpt::GetOpt::parseOptions() {
     if (_opts.empty()) {
-        vector<EZString> newlist;
-        for (auto &arg : _args) {
-            if (arg.regexMatch("^-")) {
-                EZString m = arg;
-                m.regexReplace("^-", "");
-                if (m.length() > 1) {
-                    vector<char> as(arg.begin(), arg.end());
-                    for (auto &a : as) {
-                        stringstream s;
-                        s << a;
-                        newlist.emplace_back(s.str());
+        for (unsigned long i = 0; i < _args.size(); i++) {
+            if (_args.at(i).regexMatch("^-")) {
+                EZString p = _args.at(i);
+                p.regexReplace("^-", "");
+                for (unsigned long ii = 0; ii < p.size(); ii++) {
+                    stringstream ss;
+                    ss << p.at(ii);
+                    if (_options.find(ss.str() + ":") != _options.end()) {
+                        if (_args.at(i + 1).regexMatch("^-")) {
+                            cout << "Error: option " << ss.str() << " requires an argument" << endl;
+                            exit(EXIT_FAILURE);
+                        }
+                        //cout << ss.str() << " " << _args.at(i + 1) << endl;
+                        _parsedOptions.insert(pair<char, EZString>(ss.str().at(0), _args.at(i + 1)));
+                        i++;
+                    } else {
+                        if (_options.find(ss.str()) != _options.end()) {
+                            _parsedOptions.insert(pair<char, EZString>(ss.str().at(0), ""));
+                            //cout << ss.str() << endl;
+                        } else {
+                            cout << "Error: use of unknown option " << ss.str() << endl;
+                            exit(EXIT_FAILURE);
+                        }
                     }
-                } else {
-                    newlist.emplace_back(arg);
                 }
             } else {
-                newlist.emplace_back(arg);
-            }
-        }
-        for (auto i = 0; i < newlist.size(); i++) {
-            bool added = false;
-            for (unsigned long ii = 0; ii < _options.data.size(); ii++) {
-                bool hasArg = false;
-                EZString o = _options.data.at(ii).opt();
-                if (o.regexMatch(":")) {
-                    hasArg = true;
-                    o.regexReplace(":", "");
-                }
-                EZString nodash = newlist.at(i);
-                nodash.regexReplace("^-", "");
-                if (nodash == o) {
-                    added = true;
-                    EZString V;
-                    char O = nodash[0];
-                    if (hasArg && ((i + 1) < newlist.size())) {
-                        i++;
-                        if (!newlist.at(i).regexMatch("^-")) {
-                            V = newlist.at(i);
-                        }
-                    } else if (hasArg) {
-                        showHelp();
-                        exit(EXIT_FAILURE);
-                    }
-                    _opts.insert(pair<char, EZString>(O,V));
-                }
-            }
-            if (!added) {
-                showHelp();
+                cout << "Error: unmatched argument " << _args.at(i) << endl;
                 exit(EXIT_FAILURE);
             }
         }
     }
-    return _opts;
+}
+
+bool EZGetOpt::GetOpt::option(EZString opt) {
+    return _parsedOptions.find(opt.at(0)) != _parsedOptions.end();
+}
+
+EZString EZGetOpt::GetOpt::argForOption(EZString opt) {
+    if (_parsedOptions.find(opt.at(0)) != _parsedOptions.end()) {
+        return _parsedOptions.find(opt.at(0))->second;
+    } else {
+        return "";
+    }
 }

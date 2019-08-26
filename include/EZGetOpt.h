@@ -37,75 +37,32 @@ using namespace EZTools;
 
 namespace EZGetOpt {
 
-    class GODat {
-    public:
-        GODat() { _flag = false; }
-        ~GODat() = default;
-        void flag(bool Flag) { _flag = Flag; }
-        bool flag() { return _flag; }
-        void opt(EZString opt) { _opt = opt; }
-        EZString opt() { return _opt; }
-        void description(EZString description) { _description = description; }
-        EZString description() { return _description; }
-        void value(EZString value) { _value = value; }
-        EZString value() { return _value; }
-
-    private:
-        EZString _opt;
-        EZString _description;
-        bool _flag;
-        EZString _value;
-    };
-
-    typedef vector<GODat> GetOptDataVec;
-
-    class GetOptData {
-    public:
-        GetOptData() = default;
-        ~GetOptData() = default;
-        void insert(EZString opt, EZString description);
-        GetOptDataVec data;
-    };
-
-    class EZOptPairMap {
-    public:
-        EZOptPairMap() = default;
-        ~EZOptPairMap() = default;
-        void insert(char key, EZString value);
-        EZString valueForKey(char key);
-        size_t size() { return _map.size(); }
-        static size_t begin() { return 0; }
-        size_t end() { return _map.size(); }
-        bool empty() { return _map.empty(); }
-
-    private:
-        map<char, EZString> _map;
-    };
-
-    typedef map<char,EZString> EZOpts;
+    typedef map<char, EZString> EZOpts;
 
     class GetOpt {
     public:
-        GetOpt(int &argc, char* argv[], EZString programName, EZString version);
+        GetOpt(int argc, char* argv[], EZString programName, EZString version);
         ~GetOpt() = default;
         EZString programName() { return _programName; }
         void addCommandLineOption(EZString option, EZString description);
         void addCopyright(EZString copyright);
         void addExtraMessage(EZString extraMessage);
-        void addFileOption() { _fileOption = true; }
+        EZOpts options() { return _parsedOptions; }
+        bool option(EZString opt);
+        EZString argForOption(EZString opt);
         void showHelp();
         void showVersion();
-        EZOpts processedOptions();
+        void parseOptions();
 
     private:
         EZString _programName;
-        GetOptData _options;
+        map<EZString, EZString> _options;
         EZString _copyright;
         EZString _extraMessage;
         EZString _version;
-        bool _fileOption = false;
         vector<EZString> _args;
         EZOpts _opts;
+        EZOpts _parsedOptions;
     };
 
 };

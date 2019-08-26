@@ -9,4 +9,4 @@ Makefile
 *.rpm
 CMakeCache.txt
 cmake-build-debug/
-.idea/
+.*

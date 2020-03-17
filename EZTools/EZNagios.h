@@ -27,44 +27,51 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the MRUtils project.
 */
 
-#ifndef HELPNEW_EZGETOPT_H
-#define HELPNEW_EZGETOPT_H
+#ifndef EZT_EZNAGIOS_H
+#define EZT_EZNAGIOS_H
 
 #include "EZTools.h"
 
-using namespace std;
-using namespace EZTools;
+namespace EZNagios {
 
-namespace EZGetOpt {
-
-    typedef map<char, EZString> EZOpts;
-
-    class GetOpt {
-    public:
-        GetOpt(int argc, char* argv[], EZString programName, EZString version);
-        ~GetOpt() = default;
-        EZString programName() { return _programName; }
-        void addCommandLineOption(EZString option, EZString description);
-        void addCopyright(EZString copyright);
-        void addExtraMessage(EZString extraMessage);
-        EZOpts options() { return _parsedOptions; }
-        bool option(EZString opt);
-        EZString argForOption(EZString opt);
-        void showHelp();
-        void showVersion();
-        void parseOptions();
-
-    private:
-        EZString _programName;
-        map<EZString, EZString> _options;
-        EZString _copyright;
-        EZString _extraMessage;
-        EZString _version;
-        vector<EZString> _args;
-        EZOpts _opts;
-        EZOpts _parsedOptions;
+    enum _NAGIOS_EXIT_LEVELS_T {
+        NAG_OK = 0,
+        NAG_WARN = 1,
+        NAG_CRIT = 2,
+        NAG_UNKNOWN = 3
     };
 
-};
+    class Nagios {
+    public:
+        Nagios() = default;
+        ~Nagios() = default;
+        void exit(_NAGIOS_EXIT_LEVELS_T exitLevel) {
+            std::cout << NAGEXITLEVELSAsEZSting(exitLevel) << _message.str() << std::endl;
+            std::exit(exitLevel);
+        }
 
-#endif //HELPNEW_EZGETOPT_H
+    private:
+        std::stringstream _message;
+        template<typename T>
+        friend std::ostream &operator<<(Nagios &log, T op) {
+            log._message << op;
+            return log._message;
+        }
+        static EZTools::EZString NAGEXITLEVELSAsEZSting(_NAGIOS_EXIT_LEVELS_T exitLevel) {
+            switch (exitLevel) {
+                case NAG_OK:
+                    return "OK: ";
+                case NAG_WARN:
+                    return "WARNING: ";
+                case NAG_CRIT:
+                    return "CRITICAL: ";
+                default:
+                    return "UNKNOWN: ";
+            }
+        }
+    };
+
+}
+
+
+#endif //EZT_EZNAGIOS_H

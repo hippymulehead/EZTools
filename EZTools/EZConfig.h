@@ -30,36 +30,57 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZCONFIG_H
 #define EZT_EZCONFIG_H
 
-#include <string>
-#include <fstream>
-#include <streambuf>
-#if defined(DISTRO_fc)
-#include <json/json.h>
-#include <json/reader.h>
-#else
-#include <jsoncpp/json/json.h>
-#include <jsoncpp/json/reader.h>
-#endif
-#include "EZTools.h"
-#include "EZLinux.h"
+#include "EZFiles.h"
+#include "json.h"
 
-using namespace std;
-using namespace EZTools;
-using namespace EZLinux;
+namespace EZConfig {
 
-class EZConfig {
-public:
-    explicit EZConfig(EZString filename);
-    ~EZConfig() = default;
-    bool isThere() { return _there; }
-    Json::Value jsonRoot;
-    void write();
+    class Config {
+    public:
+        nlohmann::json root;
+        Config() = default;
+        explicit Config(EZFiles::URI &confFile) {
+            _configFile.setPath(confFile.path());
+            _isThere = _configFile.isThere();
+            if (_isThere) {
+                auto r = copyFileToEZString(_configFile);
+                root = nlohmann::json::parse(r.data);
+            }
+        }
+        ~Config() = default;
+        void init(EZFiles::URI &confFile) {
+            _configFile.setPath(confFile.path());
+            _isThere = _configFile.isThere();
+            if (_isThere) {
+                auto r = copyFileToEZString(_configFile);
+                root = nlohmann::json::parse(r.data);
+            }
+        }
+        bool isThere() { return _isThere; }
+        EZTools::EZString asString() { return root.dump(4); }
+        static EZTools::EZReturn<bool> write() {
+            EZTools::EZReturn<bool> res;
+//    EZFileStat stat(_filename);
+//    if (stat.isWriteable()) {
+//        if (isThere()) {
+//            _json.writeToFile(_filename, EZOVERWRITE);
+//        } else {
+//            _json.writeToFile(_filename, EZNEW);
+//        }
+//        res.wasSuccessful(true);
+//        return res;
+//    } else {
+//        res.message(_filename+" is not writeable");
+//        return res;
+//    }
+            return res;
+        }
 
-private:
-    EZKeyValueMap<EZString> _config;
-    bool _there = false;
-    EZString _filename;
-    EZString _file;
+    private:
+        EZFiles::URI _configFile;
+        bool _isThere;
+    };
+
 };
 
 

@@ -1,58 +1,147 @@
-cmake_minimum_required(VERSION 2.8)
-project(eztools)
+## RA Build Template
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+###################################
+# Set CMake Policy
+###################################
+if (POLICY CMP0048)
+    CMAKE_POLICY(SET CMP0048 NEW)
+endif (POLICY CMP0048)
+###################################
+# Set build options
+###################################
+OPTION(RPM OFF)
+OPTION(DEB OFF)
+###################################
+# Version Info (Start Edits)
+###################################
+SET(CPACK_PACKAGE_VERSION_MAJOR "4")
+SET(CPACK_PACKAGE_VERSION_MINOR "1")
+SET(CPACK_PACKAGE_VERSION_PATCH "0")
+SET(CPACK_PACKAGE_RELEASE 1)
+SET(_PACKAGE_NAME "eztools")
+SET(CPACK_PACKAGE_CONTACT "mromans@romansaudio.com")
+SET(CPACK_PACKAGE_VENDOR "Romans Audio")
+SET(CPACK_PACKAGE_DESCRIPTION "C++ Tools")
+SET(CMAKE_INSTALL_DIR "/usr/bin")
+SET(_INCLUDE_DIR "/usr/include/eztools")
+## CentOS 7 Only
+SET(CENTOS7_REQUIRED_PACKAGES "poco-foundation >= 1.6.1, poco-devel >= 1.6.1, curl >= 7.29.0, curl-devel >= 7.29.0, libsodium >= 0.9.0, libsodium-devel >= 0.9.0")
+## EL 8 & Fedora
+SET(RPM_REQUIRED_PACKAGES "curl >= 7.29.0, curl-devel >= 7.29.0, libsodium >= 0.9.0, libsodium-devel >= 0.9.0")
+## Deb and Ubuntu based
+SET(DEB_REQUIRED_PACKAGES "libcurl4-openssl-dev, libcurl4, libsodium")
+###################################
+# Don't Edit Below Here
+###################################
+SET(PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
+MESSAGE("** PACKAGE_VERSION = ${PACKAGE_VERSION}")
+PROJECT("${_PACKAGE_NAME}")
+###################################
+# CentOS 7 experimental support
+###################################
+if (RPM)
+    SET(CMAKE_CXX_STANDARD 11)
+    IF(CMAKE_VERSION VERSION_LESS 3.0.0)
+        SET(EL_VERSION "7")
+        SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fwrapv")
+    ELSE()
+        SET(EL_VERSION "8")
+    ENDIF()
+endif ()
+if (DEB)
+    SET(CMAKE_CXX_STANDARD 11)
+endif ()
 
-set(CMAKE_CXX_STANDARD 11)
-IF(CMAKE_VERSION VERSION_LESS 3.0.0)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fwrapv")
+STRING (REGEX MATCH "el[1-9]|fc[0-9][0-9]" os_version_suffix ${CMAKE_SYSTEM})
+
+if (RPM)
+    STRING (REGEX MATCH "el|fc" OS_ID ${os_version_suffix})
+    if (OS_ID STREQUAL "el")
+        if(EL_VERSION STREQUAL "7")
+            SET(REQUIRED_PACKAGES ${CENTOS7_REQUIRED_PACKAGES})
+        ELSE()
+            SET(REQUIRED_PACKAGES ${RPM_REQUIRED_PACKAGES})
+        ENDIF()
+    endif()
+    if (OS_ID STREQUAL "fc")
+        SET(REQUIRED_PACKAGES ${RPM_REQUIRED_PACKAGES})
+    endif()
+endif ()
+if (DEB)
+    set(OS_ID "deb")
+    SET(REQUIRED_PACKAGES ${DEB_REQUIRED_PACKAGES})
+endif ()
+
+###################################
+# Files
+###################################
+FILE(GLOB EZTOOLS EZTools/*.h)
+###################################
+# Build lib versions
+###################################
+ADD_EXECUTABLE(${_PACKAGE_NAME} main.cpp ${EZTOOLS})
+TARGET_INCLUDE_DIRECTORIES(${_PACKAGE_NAME} PUBLIC EZTools)
+if (OS_ID STREQUAL "el")
+    IF(EL_VERSION STREQUAL "7")
+        TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} PocoFoundation curl sodium resolv)
+    ELSE()
+        TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} curl sodium resolv)
+    ENDIF()
+else()
+    TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} curl sodium resolv)
+endif()
+
+###################################
+# Install methods
+###################################
+install(DIRECTORY EZTools/ DESTINATION ${_INCLUDE_DIR})
+###################################
+# CPack Stuff
+###################################
+SET(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+SET(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY ${CPACK_PACKAGE_DESCRIPTION})
+SET(CPACK_PACKAGE_RELOCATABLE "false")
+###################################
+# RPM Stuff
+###################################
+if (RPM)
+    SET(CPACK_RPM_PACKAGE_REQUIRES ${REQUIRED_PACKAGES})
+    set(CPACK_PACKAGE_NAME "${_PACKAGE_NAME}")
+    SET(CPACK_GENERATOR "RPM")
+    MESSAGE("** BUILDING RPM")
+    SET(CPACK_RPM_PACKAGE_AUTOREQ "NO")
+    SET(CPACK_RPM_PACKAGE_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
+    SET(CPACK_RPM_PACKAGE_DESCRIPTION ${CPACK_PACKAGE_DESCRIPTION_SUMMARY})
+    MESSAGE("** CMAKE_SYSTEM ${CMAKE_SYSTEM}")
+    SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${os_version_suffix}.${CMAKE_SYSTEM_PROCESSOR}")
+    MESSAGE("** ${CPACK_PACKAGE_FILE_NAME}")
+    MESSAGE("** OS_ID ${OS_ID}")
+endif ()
+
+if (DEB)
+    SET(CPACK_DEBIAN_PACKAGE_DEPENDS ${REQUIRED_PACKAGES})
+    SET(CPACK_DEBIAN_PACKAGE_RELEASE ${CPACK_PACKAGE_RELEASE})
+    set(CPACK_PACKAGE_NAME "${_PACKAGE_NAME}")
+    SET(CPACK_GENERATOR "DEB")
+    MESSAGE("** BUILDING DEB")
+    SET(CPACK_DEBIAN_PACKAGE_MAINTAINER ${CPACK_PACKAGE_CONTACT})
+    MESSAGE("** CMAKE_SYSTEM ${CMAKE_SYSTEM}")
+    SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${CMAKE_SYSTEM_PROCESSOR}")
+    SET(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
+endif ()
+
+message("** OS_ID = ${OS_ID}")
+if (OS_ID STREQUAL "el")
+    if(EL_VERSION STREQUAL "7")
+        ADD_DEFINITIONS(-DVERSION="${PACKAGE_VERSION}" -DCENTOS7="ON")
+    ELSE()
+        ADD_DEFINITIONS(-DVERSION="${PACKAGE_VERSION}")
+    ENDIF()
+ELSE()
+    ADD_DEFINITIONS(-DVERSION="${PACKAGE_VERSION}")
 ENDIF()
 
-set(EZTOOLS_LIBS include/EZConfig.h src/EZConfig.cpp include/EZHTTP.h src/EZHTTP.cpp include/EZLinux.h
-        src/EZLinux.cpp include/EZScreen.h src/EZScreen.cpp include/EZTools.h src/EZTools.cpp
-        include/EZProc.h src/EZProc.cpp include/EZLogger.h src/EZLogger.cpp include/EZFileManager.h
-        src/EZFileManager.cpp src/EZGetOpt.cpp include/EZGetOpt.h)
-
-## DYNAMIC LIB
-add_library(eztools SHARED ${EZTOOLS_LIBS})
-
-## STATIC LIB
-#add_library(eztools ${EZTOOLS_LIBS})
-
-target_include_directories(eztools PUBLIC include)
-
-target_link_libraries(eztools PocoFoundation PocoCrypto crypto jsoncpp curl)
-
-install(TARGETS eztools DESTINATION /usr/lib/)
-install(DIRECTORY include/ DESTINATION /usr/include/EZTools)
-
-# Version Info 1
-set(PROJECT_VERSION_MAJOR "2")
-set(PROJECT_VERSION_MINOR "2")
-set(PROJECT_VERSION_PATCH "2")
-set(CPACK_PACKAGE_RELEASE 1)
-set(PROJECT_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
-
-# CPACK Stuff
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "EZ Tools for C++ Programming Lib")
-set(CPACK_PACKAGE_RELOCATABLE "false")
-set(CPACK_PACKAGE_NAME "libeztools")
-set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_PACKAGE_CONTACT "Michael Romans")
-set(CPACK_PACKAGE_VENDOR "Romans Audio")
-set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
-
-# RPM Stuff
-set(CPACK_RPM_PACKAGE_RELOCATABLE "false")
-set(CPACK_RPM_PACKAGE_AUTOREQ "NO")
-set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
-set(CPACK_RPM_PACKAGE_REQUIRES "poco-foundation >= 1.6.1, poco-crypto >= 1.6.1, jsoncpp >= 0.10.5, curl >= 7.29.0")
-set(CPACK_RPM_PACKAGE_DESCRIPTION ${CPACK_PACKAGE_DESCRIPTION_SUMMARY})
-message(** " " ${CMAKE_SYSTEM})
-string (REGEX MATCH "el[1-9]|fc[0-9][0-9]" os_version_suffix ${CMAKE_SYSTEM})
-message("** ${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${os_version_suffix}.${CMAKE_SYSTEM_PROCESSOR}")
-
-string (REGEX MATCH "el|fc" OS_ID ${os_version_suffix})
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${os_version_suffix}.${CMAKE_SYSTEM_PROCESSOR}")
-set(CPACK_GENERATOR "RPM")
-add_definitions(-DDISTRO_${OS_ID})
-
-include(CPack)
+INCLUDE(CPack)
+UNSET(DEB CACHE)
+UNSET(RPM CACHE)

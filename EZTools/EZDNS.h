@@ -24,58 +24,52 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The views and conclusions contained in the software and documentation are those
 of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of the MRUtils project.
+either expressed or implied, of the EZTools project.
 */
 
-#ifndef EZLOGGER_H
-#define EZLOGGER_H
+#ifndef EZT_EZDNS_H
+#define EZT_EZDNS_H
 
 #include "EZTools.h"
-#include "EZLinux.h"
-#include "EZConfig.h"
-#include <iostream>
-#include <fstream>
+#include <resolv.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <linux/if.h>
+#include <netdb.h>
 
-using namespace EZDateTimeFunctions;
-using namespace EZTools;
-using namespace EZLinux;
-using namespace std;
+namespace EZDNS {
 
-enum EZLogLevel {
-    QUITE = 4,
-    CRITICAL = 3,
-    WARNING = 2,
-    INFO = 1,
-    DEBUG = 0
-};
+    /*
+     * EZDNS::RECORD_T
+     * A enum type for future code
+     */
+    enum RECORD_T {A, PTR, MX, NS};
 
-class EZLogger {
-public:
-    EZLogger(EZString logFileName, EZLogLevel defaultLogLevel);
-    explicit EZLogger(EZString configFileName);
-    ~EZLogger();
-    void writeLevel(EZLogLevel writeLevel);
-    void tempLogLevel(EZLogLevel tempLogLevel);
-    void defaultLogLevel();
-    string LogLevelAsString();
-
-private:
-    ofstream _os;
-    ofstream _null;
-    EZLogLevel _defaultLogLevel;
-    EZLogLevel _currentLogLevel;
-    EZLogLevel _writeLevel;
-    EZString _logFileName;
-
-    template<typename T>
-    friend ostream& operator<<(EZLogger& log, T op) {
-        if (log._writeLevel >= log._currentLogLevel) {
-            EZSystemTime dt;
-            log._os << dt.ymdt() << " " << log.LogLevelAsString() << op;
-            return log._os;
+    /*
+     * EZDNS::dndLookup
+     * Right now a simple A record lookup.
+     */
+    inline EZTools::EZString dnsLookup(EZTools::EZString ip, RECORD_T type = A) {
+        struct hostent *server;
+        switch (type) {
+            case A:
+                server = gethostbyname(ip.c_str());
+                break;
         }
-        return log._null;
+
+        if (server == nullptr) {
+            return "";
+        }
+        int i = 0;
+        EZTools::EZString addr;
+        while(server->h_addr_list[i] != nullptr) {
+            addr = inet_ntoa( (struct in_addr) *((struct in_addr *) server->h_addr_list[i]));
+            i++;
+        }
+        return addr;
     }
+
 };
 
-#endif //EZLOGGER_H
+#endif //EZT_EZDNS_H

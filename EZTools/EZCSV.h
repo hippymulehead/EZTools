@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The views and conclusions contained in the software and documentation are those
 of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of the EZTools project.
+either expressed or implied, of the MRUtils project.
 */
 
 #ifndef EZT_EZCSV_H
@@ -34,8 +34,6 @@ either expressed or implied, of the EZTools project.
 #include "EZFiles.h"
 
 namespace EZCSV {
-
-    typedef std::vector<std::vector<EZTools::EZString>> ezcsv;
 
     class CSVFile {
     public:
@@ -76,7 +74,7 @@ namespace EZCSV {
             }
         }
         ~CSVFile() = default;
-        ezcsv csv() { return _csv; }
+        EZTools::ezcsv csv() { return _csv; }
         std::vector<EZTools::EZString> headers() { return _headers; }
         void addHeaders(std::vector<EZTools::EZString> headers) {
             _headers = headers;
@@ -87,7 +85,7 @@ namespace EZCSV {
         std::vector<EZTools::EZString> _headers;
         EZTools::EZString _filename;
         EZFiles::URI _file;
-        ezcsv _csv;
+        EZTools::ezcsv _csv;
     };
 
 }

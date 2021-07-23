@@ -15,8 +15,8 @@ OPTION(DEB OFF)
 # Version Info (Start Edits)
 ###################################
 SET(CPACK_PACKAGE_VERSION_MAJOR "4")
-SET(CPACK_PACKAGE_VERSION_MINOR "1")
-SET(CPACK_PACKAGE_VERSION_PATCH "0")
+SET(CPACK_PACKAGE_VERSION_MINOR "6")
+SET(CPACK_PACKAGE_VERSION_PATCH "12")
 SET(CPACK_PACKAGE_RELEASE 1)
 SET(_PACKAGE_NAME "eztools")
 SET(CPACK_PACKAGE_CONTACT "mromans@romansaudio.com")
@@ -29,7 +29,7 @@ SET(CENTOS7_REQUIRED_PACKAGES "poco-foundation >= 1.6.1, poco-devel >= 1.6.1, cu
 ## EL 8 & Fedora
 SET(RPM_REQUIRED_PACKAGES "curl >= 7.29.0, curl-devel >= 7.29.0, libsodium >= 0.9.0, libsodium-devel >= 0.9.0")
 ## Deb and Ubuntu based
-SET(DEB_REQUIRED_PACKAGES "libcurl4-openssl-dev, libcurl4, libsodium")
+SET(DEB_REQUIRED_PACKAGES "libcurl4-openssl-dev, libcurl4, libsodium23")
 ###################################
 # Don't Edit Below Here
 ###################################
@@ -76,19 +76,20 @@ endif ()
 # Files
 ###################################
 FILE(GLOB EZTOOLS EZTools/*.h)
+FILE(GLOB CXXURL EZTools/cxxurl/*.h)
 ###################################
 # Build lib versions
 ###################################
-ADD_EXECUTABLE(${_PACKAGE_NAME} main.cpp ${EZTOOLS})
+ADD_EXECUTABLE(${_PACKAGE_NAME} main.cpp ${EZTOOLS} ${CXXURL})
 TARGET_INCLUDE_DIRECTORIES(${_PACKAGE_NAME} PUBLIC EZTools)
 if (OS_ID STREQUAL "el")
     IF(EL_VERSION STREQUAL "7")
-        TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} PocoFoundation curl sodium resolv)
+        TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} PocoFoundation curl sodium resolv cryptopp pthread)
     ELSE()
-        TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} curl sodium resolv)
+        TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} curl sodium resolv cryptopp pthread)
     ENDIF()
 else()
-    TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} curl sodium resolv)
+    TARGET_LINK_LIBRARIES(${_PACKAGE_NAME} curl sodium resolv cryptopp pthread)
 endif()
 
 ###################################

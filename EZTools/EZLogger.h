@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -36,18 +36,11 @@ either expressed or implied, of the MRUtils project.
 #include "EZConfig.h"
 
 namespace EZLogger {
-    enum _LOG_LEVEL_T {
-        QUITE = 4,
-        CRITICAL = 3,
-        WARNING = 2,
-        INFO = 1,
-        DEBUG = 0
-    };
 
     class Logger {
     public:
         Logger() = default;
-        Logger(EZFiles::URI &logFileURI, _LOG_LEVEL_T defaultLogLevel) {
+        Logger(EZFiles::URI &logFileURI, EZTools::LOGLEVEL defaultLogLevel) {
             _logFileName = logFileURI.path();
             if (_logFileName.regexMatch("^~")) {
                 _logFileName.regexReplace("^~", EZFiles::homeDir());
@@ -60,7 +53,7 @@ namespace EZLogger {
             _null.open("/dev/null", std::ios::out);
             _defaultLogLevel = defaultLogLevel;
             _currentLogLevel = _defaultLogLevel;
-            _writeLevel = DEBUG;
+            _writeLevel = EZTools::LOGLEVEL::DEBUG;
         }
         explicit Logger(EZFiles::URI &configFile) {
             EZTools::EZString cf = configFile.path();
@@ -75,18 +68,18 @@ namespace EZLogger {
                 _null.open("/dev/null", std::ios::out);
                 EZTools::EZString tlevel = _confFile.root["defaultLogLevel"].get<EZTools::EZString>();
                 if (tlevel == "CRITICAL") {
-                    _defaultLogLevel = CRITICAL;
+                    _defaultLogLevel = EZTools::LOGLEVEL::CRITICAL;
                 } else if (tlevel == "WARNING") {
-                    _defaultLogLevel = WARNING;
+                    _defaultLogLevel = EZTools::LOGLEVEL::WARNING;
                 } else if (tlevel == "INFO") {
-                    _defaultLogLevel = INFO;
+                    _defaultLogLevel = EZTools::LOGLEVEL::INFO;
                 } else if (tlevel == "DEBUG") {
-                    _defaultLogLevel = DEBUG;
+                    _defaultLogLevel = EZTools::LOGLEVEL::DEBUG;
                 } else {
-                    _defaultLogLevel = QUITE;
+                    _defaultLogLevel = EZTools::LOGLEVEL::QUITE;
                 }
                 _currentLogLevel = _defaultLogLevel;
-                _writeLevel = DEBUG;
+                _writeLevel = EZTools::LOGLEVEL::DEBUG;
                 _isOpen = true;
             } else {
                 _isOpen = false;
@@ -96,7 +89,7 @@ namespace EZLogger {
             _os.close();
             _null.close();
         }
-        void init(EZFiles::URI &logFileURI, _LOG_LEVEL_T defaultLogLevel) {
+        void init(EZFiles::URI &logFileURI, EZTools::LOGLEVEL defaultLogLevel) {
             _logFileName = logFileURI.path();
             if (_logFileName.regexMatch("^~")) {
                 _logFileName.regexReplace("^~", EZFiles::homeDir());
@@ -109,20 +102,20 @@ namespace EZLogger {
             _null.open("/dev/null", std::ios::out);
             _defaultLogLevel = defaultLogLevel;
             _currentLogLevel = _defaultLogLevel;
-            _writeLevel = DEBUG;
+            _writeLevel = EZTools::LOGLEVEL::DEBUG;
         }
-        void writeLevel(_LOG_LEVEL_T writeLevel) { _writeLevel = writeLevel; }
-        void tempLogLevel(_LOG_LEVEL_T tempLogLevel) { _currentLogLevel = tempLogLevel; }
+        void writeLevel(EZTools::LOGLEVEL writeLevel) { _writeLevel = writeLevel; }
+        void tempLogLevel(EZTools::LOGLEVEL tempLogLevel) { _currentLogLevel = tempLogLevel; }
         void defaultLogLevel() { _currentLogLevel = _defaultLogLevel; }
         std::string LogLevelAsString() {
             switch (_writeLevel) {
-                case CRITICAL:
+                case EZTools::LOGLEVEL::CRITICAL:
                     return "CRITICAL: ";
-                case WARNING:
+                case EZTools::LOGLEVEL::WARNING:
                     return "WARNING: ";
-                case INFO:
+                case EZTools::LOGLEVEL::INFO:
                     return "INFO: ";
-                case DEBUG:
+                case EZTools::LOGLEVEL::DEBUG:
                     return "DEBUG: ";
                 default:
                     return "";
@@ -133,10 +126,11 @@ namespace EZLogger {
     private:
         std::ofstream _os;
         std::ofstream _null;
-        _LOG_LEVEL_T _defaultLogLevel;
-        _LOG_LEVEL_T _currentLogLevel;
-        _LOG_LEVEL_T _writeLevel;
+        EZTools::LOGLEVEL _defaultLogLevel;
+        EZTools::LOGLEVEL _currentLogLevel;
+        EZTools::LOGLEVEL _writeLevel;
         EZTools::EZString _logFileName;
+        unsigned long long _lineCounter = 0;
         bool _isOpen;
 
         template<typename T>

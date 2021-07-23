@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -32,10 +32,9 @@ either expressed or implied, of the MRUtils project.
 
 #include <map>
 #include "EZTools.h"
+#include "EZScreen.h"
 
 namespace EZGetOpt {
-
-    typedef std::map<char, EZTools::EZString> EZOpts;
 
     /*
      * EZGetOpt::GetOpt
@@ -70,7 +69,7 @@ namespace EZGetOpt {
         }
         void addCopyright(EZTools::EZString copyright) { _copyright = copyright; }
         void addExtraMessage(EZTools::EZString extraMessage) { _extraMessage = extraMessage; }
-        EZOpts options() { return _parsedOptions; }
+        EZTools::EZOpts options() { return _parsedOptions; }
         bool option(EZTools::EZString opt) {
             return _parsedOptions.find(opt.at(0)) != _parsedOptions.end();
         }
@@ -81,32 +80,62 @@ namespace EZGetOpt {
                 return "";
             }
         }
-        void showHelp() {
-            std::cout << std::endl << _programName << " v" << _version << " " << _copyright << std::endl;
+        bool hasOption(EZTools::EZString opt) {
+            if (_parsedOptions.find(opt.at(0)) != _parsedOptions.end()) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+        void showHelp(bool showColor = true) {
+            EZScreen::color = showColor;
+            std::stringstream ss;
+            ss << EZScreen::foreground(EZScreen::BRIGHT_GREEN);
+            ss << std::endl << _programName;
+            ss << EZScreen::foreground(EZScreen::BRIGHT_CYAN);
+            ss << " v" << _version;
+            ss << EZScreen::foreground(EZScreen::BRIGHT_YELLOW);
+            ss << " " << _copyright << std::endl;
             if (!_extraMessage.empty()) {
-                std::cout << _extraMessage << std::endl;
+                ss << EZScreen::foreground(EZScreen::BRIGHT_MAGENTA);
+                ss << _extraMessage << std::endl;
             }
-            std::cout << "Help: " << _programName << " <";
+            ss << EZScreen::foreground(EZScreen::BRIGHT_YELLOW);
+            ss << "Help: ";
+            ss << EZScreen::foreground(EZScreen::BRIGHT_GREEN);
+            ss << _programName << " <-";
+            ss << EZScreen::foreground(EZScreen::BRIGHT_YELLOW);
             for (auto& op : _options) {
-                std::cout << op.first;
+                ss << op.first;
             }
-            std::cout << ">";
+            ss << EZScreen::foreground(EZScreen::BRIGHT_GREEN);
+            ss << ">";
+            ss << EZScreen::foreground(EZScreen::BRIGHT_BLUE);
             if (_unpairedRequired > 0) {
                 for (auto& oo : _unpairedNames) {
-                    std::cout << " <" << oo << ">";
+                    ss << " <" << oo << ">";
                 }
             }
-            std::cout << std::endl;
+            ss << std::endl;
             for (auto& op : _options) {
-                std::cout << "  " << op.first << " \t" << op.second << std::endl;
+                ss << EZScreen::foreground(EZScreen::BRIGHT_YELLOW);
+                ss << "  " << op.first << " \t";
+                ss << EZScreen::foreground(EZScreen::BRIGHT_GREEN);
+                ss << op.second << std::endl;
             }
-            std::cout << std::endl;
+            ss << std::endl;
+            ss << CON_RESET;
+            std::cout << ss.str();
         }
-        void showVersion() {
-            std::cout << std::endl << _programName << " " << _version << std::endl << std::endl;
+        void showVersion(bool showColor = true) {
+            std::stringstream ss;
+            EZScreen::color = showColor;
+            ss << std::endl << _programName << " " << _version << std::endl << std::endl;
+            std::cout << ss.str();
         }
         EZTools::EZReturn<bool> parseOptions() {
             EZTools::EZReturn<bool> res;
+            res.metaData.location = "EZGetOpt::parseOptions";
             std::vector<EZTools::EZString> noOpts;
             std::vector<EZTools::EZString> opts;
             int noOptCounter = 0;
@@ -136,6 +165,7 @@ namespace EZGetOpt {
                         std::stringstream ss;
                         ss << "Option " << o << " requires an argument";
                         res.message(ss.str());
+                        res.exitCode(10);
                         res.wasSuccessful(false);
                         return res;
                     }
@@ -143,6 +173,7 @@ namespace EZGetOpt {
                     std::stringstream ss;
                     ss << "Option " << o << " is unknown";
                     res.message(ss.str());
+                    res.exitCode(11);
                     res.wasSuccessful(false);
                     return res;
                 }
@@ -158,6 +189,7 @@ namespace EZGetOpt {
                     ss << "Not enough arguments, " << _unpairedArgs.size() << " found but " << _unpairedRequired
                         << " required";
                     res.message(ss.str());
+                    res.exitCode(12);
                     res.wasSuccessful(false);
                     return res;
                 }
@@ -177,8 +209,8 @@ namespace EZGetOpt {
         EZTools::EZString _version;
         std::vector<EZTools::EZString> _args;
         std::vector<EZTools::EZString> _unpairedArgs;
-        EZOpts _opts;
-        EZOpts _parsedOptions;
+        EZTools::EZOpts _opts;
+        EZTools::EZOpts _parsedOptions;
         unsigned long long _unpairedRequired = 0;
         std::vector<EZTools::EZString> _unpairedNames;
         std::map<EZTools::EZString, EZTools::EZString> _requiredArgs;

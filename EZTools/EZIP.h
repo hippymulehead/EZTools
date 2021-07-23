@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -54,12 +54,26 @@ either expressed or implied, of the MRUtils project.
 
 namespace EZIP {
 
-    enum _INTERFACE_T {WIFI, ETHERNET, LOCALHOST};
-
     struct IPAddressData {
         EZTools::EZString interface;
         EZTools::EZString v4Address;
     };
+
+    inline bool isIP(EZTools::EZString ipAddress) {
+        return ipAddress.regexMatch(EZTools::IPv4Regex);
+    }
+
+    inline std::vector<int> getOctets(EZTools::EZString address) {
+        auto octs = address.regexExtract(EZTools::IPv4Regex);
+        std::vector<int> res;
+        if (octs.size() != 4) {
+            return res;
+        }
+        for (auto& oct : octs) {
+            res.push_back(oct.asInt());
+        }
+        return res;
+    }
 
     class IPAddresses {
     public:
@@ -145,40 +159,27 @@ namespace EZIP {
         IPAddress() = default;
         explicit IPAddress(EZTools::EZString address) {
             EZTools::EZString ip;
-            if (!address.regexMatch("^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                   "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                   "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                   "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])")) {
-                ip = EZDNS::dnsLookup(address);
-            } else {
+            if (isIP(address)) {
                 ip = address;
-            }
-            std::vector<EZTools::EZString> octs = ip.regexExtract("^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                  "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                  "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                  "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])");
-            if (octs.empty()) {
-                _isGood = false;
             } else {
-                for (auto i = 0; i < 4; i++) {
-                    _octs.push_back(octs.at(i + 1).asInt());
-                    _isGood = true;
-                }
+                return;
+            }
+            _octs = getOctets(ip);
+            if (_octs.empty()) {
+                _isGood = false;
             }
         }
         ~IPAddress() = default;
-        void init(EZTools::EZString ip) {
-            std::vector<EZTools::EZString> octs = ip.regexExtract("^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                  "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                  "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                  "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])");
-            if (octs.empty()) {
-                _isGood = false;
+        void init(EZTools::EZString address) {
+            EZTools::EZString ip;
+            if (isIP(address)) {
+                ip = address;
             } else {
-                for (auto i = 0; i < 4; i++) {
-                    _octs.push_back(octs.at(i + 1).asInt());
-                    _isGood = true;
-                }
+                return;
+            }
+            _octs = getOctets(ip);
+            if (_octs.empty()) {
+                _isGood = false;
             }
         }
         bool isGood() { return _isGood; }
@@ -254,18 +255,15 @@ namespace EZIP {
             }
             if (_defaultInterface.regexMatch("^w")) {
                 _defaultIP = ips.wifiAddress();
-                _interfaceType = WIFI;
+                _interfaceType = EZTools::INTERFACETYPE::WIFI;
             } else if (_defaultInterface.regexMatch("^e")) {
                 _defaultIP = ips.ethernetAddress();
-                _interfaceType = ETHERNET;
+                _interfaceType = EZTools::INTERFACETYPE::ETHERNET;
             } else {
                 _defaultIP = ips.localAddress();
-                _interfaceType = LOCALHOST;
+                _interfaceType = EZTools::INTERFACETYPE::LOCALHOST;
             }
-            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract("^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                          "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                          "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                          "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])");
+            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract(EZTools::IPv4Regex);
             if (octs.empty()) {
                 _isGood = false;
             } else {
@@ -292,18 +290,15 @@ namespace EZIP {
             }
             if (_defaultInterface.regexMatch("^w")) {
                 _defaultIP = ips.wifiAddress();
-                _interfaceType = WIFI;
+                _interfaceType = EZTools::INTERFACETYPE::WIFI;
             } else if (_defaultInterface.regexMatch("^e")) {
                 _defaultIP = ips.ethernetAddress();
-                _interfaceType = ETHERNET;
+                _interfaceType = EZTools::INTERFACETYPE::ETHERNET;
             } else {
                 _defaultIP = ips.localAddress();
-                _interfaceType = LOCALHOST;
+                _interfaceType = EZTools::INTERFACETYPE::LOCALHOST;
             }
-            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract("^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                          "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                          "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])."
-                                                                          "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])");
+            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract(EZTools::IPv4Regex);
             if (octs.empty()) {
                 _isGood = false;
             } else {
@@ -363,8 +358,9 @@ namespace EZIP {
             EZTools::EZString externalIP;
             if (canRoute()) {
                 if (!isRoutable()) {
-                    EZHTTP::HTTP http("EZTools v4 ip module");
                     EZHTTP::URI ipify("\"https://api.ipify.org/?format=json");
+                    ipify.userAgent("EZTools v4 ip module");
+                    EZHTTP::HTTP http;
                     auto response = http.get(ipify);
                     if (response.wasSuccessful()) {
                         externalIP = response.data();
@@ -381,7 +377,7 @@ namespace EZIP {
         }
         EZTools::EZString interface() { return _defaultInterface; }
         bool hasInternet() { return _internetConnected; }
-        _INTERFACE_T interfaceType() { return _interfaceType; }
+        EZTools::INTERFACETYPE interfaceType() { return _interfaceType; }
 
     private:
         std::vector<int> _octs;
@@ -389,18 +385,18 @@ namespace EZIP {
         EZTools::EZString _defaultInterface;
         EZTools::EZString _defaultIP;
         bool _internetConnected;
-        _INTERFACE_T _interfaceType;
+        EZTools::INTERFACETYPE _interfaceType;
     };
 
-    inline EZHTTP::URI ezipToURI(EZHTTP::CONNECT_T type, EZIP::IPAddress &ezip, EZTools::EZString path,
+    inline EZHTTP::URI ezipToURI(EZTools::CONNECTIONTYPE type, EZIP::IPAddress &ezip, EZTools::EZString path,
             int timeout = 15, EZTools::EZString username = "", EZTools::EZString password = "",
             bool hasRealCert = true) {
         std::stringstream ss;
         switch (type) {
-            case EZHTTP::HTTP_T:
+            case EZTools::CONNECTIONTYPE::HTTP:
                 ss << "http://";
                 break;
-            case EZHTTP::HTTPS_T:
+            case EZTools::CONNECTIONTYPE::HTTPS:
                 ss << "https://";
                 break;
         }

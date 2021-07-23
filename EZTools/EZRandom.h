@@ -33,10 +33,11 @@ either expressed or implied, of the MRUtils project.
 #include <sodium.h>
 #include <fstream>
 #include "EZTools.h"
+#include "json.h"
 
 namespace EZRandom {
 
-    int init() {
+    inline int init() {
         if (sodium_init() == -1) {
             return 0;
         }
@@ -67,44 +68,52 @@ namespace EZRandom {
         int Int(uint32_t upper) { return randombytes_uniform(upper) + 1; }
         char Char() { return char(randombytes_uniform(128)); }
         bool Bool() {
-            int i = Int(100) + 1;
+            int i = Int(100);
             return i > 50;
         }
     };
 
-    class EZDice {
-    public:
-        EZDice() = default;
-        ~EZDice() = default;
-
-        int coin() { return _d.Int(2) + 1; }
-        EZTools::EZString coinAsString() { return _coinAsString(_d.Int(2) + 1); }
-        int d4(int times) { return _roll(4, times); }
-        int d6(int times) { return _roll(6, times); }
-        int d8(int times) { return _roll(8, times); }
-        int d10(int times) { return _roll(10, times); }
-        int d12(int times) { return _roll(12, times); }
-        int d20(int times) { return _roll(20, times); }
-
-    private:
-        EZRand _d;
-
-        int _roll(int sides, int times) {
-            int total = 0;
-            for (int i = 0; i < times; i++) {
-                total += _d.Int(sides) + 1;
+    inline EZTools::EZString mkpasswd(int length = 8) {
+        std::vector<EZTools::EZString> alpha {"a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r",
+                                              "s","t","u","v","w","x","y","z"};
+        std::vector<EZTools::EZString> special {"!","@","#","$","%","^","&","*","(",")","-","_","=","+","[","]","{","}",
+                                                "|","\\","/",",",".","<",">"};
+        EZRandom::init();
+        EZRandom::EZRand rnd;
+        EZTools::EZString pass;
+        bool notdone = true;
+        while (notdone) {
+            std::stringstream ss;
+            for (int i = 0; i < length; i++) {
+                auto t = rnd.Int(4);
+                EZTools::EZString l;
+                switch (t) {
+                    case 1:
+                        l = alpha.at(rnd.Int(alpha.size()) - 1);
+                        break;
+                    case 2:
+                        l = alpha.at(rnd.Int(alpha.size()) - 1);
+                        l = l.upper();
+                        break;
+                    case 3:
+                        l = rnd.Int(10) - 1;
+                        break;
+                    case 4:
+                        l = special.at(rnd.Int(special.size()) - 1);
+                        break;
+                    default:
+                        l = "__";
+                        break;
+                }
+                ss << l;
             }
-            return total;
-        }
-
-        static EZTools::EZString _coinAsString(int value) {
-            if (value == 1) {
-                return "Heads";
-            } else {
-                return "Tails";
+            pass = ss.str();
+            if (pass.regexMatch("(?=.*[a-z])(?=.*[A-Z])(?=.*[$&+,:;=?@#|'<>.^*()%!-])")) {
+                notdone = false;
             }
         }
-    };
+        return pass;
+    }
 };
 
 #endif //EZT_EZRANDOM_H

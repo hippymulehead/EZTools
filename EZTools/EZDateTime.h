@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -37,79 +37,6 @@ either expressed or implied, of the MRUtils project.
 #include "EZTools.h"
 
 namespace EZDateTime {
-
-    inline EZTools::EZString intToMonth(int monthNumber) {
-        switch (monthNumber) {
-            case 1:
-                return "January";
-            case 2:
-                return "Feburary";
-            case 3:
-                return "March";
-            case 4:
-                return "April";
-            case 5:
-                return "May";
-            case 6:
-                return "June";
-            case 7:
-                return "July";
-            case 8:
-                return "August";
-            case 9:
-                return "September";
-            case 10:
-                return "October";
-            case 11:
-                return "November";
-            case 12:
-                return "December";
-            default:
-                return "";
-        }
-    }
-
-    inline EZTools::EZString intToDay(int dayNumber) {
-        switch (dayNumber) {
-            case 0:
-                return "Sunday";
-            case 1:
-                return "Monday";
-            case 2:
-                return "Tuesday";
-            case 3:
-                return "Wednesday";
-            case 4:
-                return "Thursday";
-            case 5:
-                return "Friday";
-            case 6:
-                return "Saturady";
-            default:
-                return "";
-        }
-    }
-
-    inline EZTools::EZString dateSuffix(int dayNumber) {
-        switch (dayNumber) {
-            case 1:
-                return "st";
-            case 21:
-                return "st";
-            case 31:
-                return "st";
-            case 2:
-                return "nd";
-            case 22:
-                return "nd";
-            case 3:
-                return "rd";
-            case 23:
-                return "rd";
-            default:
-                return "th";
-        }
-    }
 
     inline uint64_t CurrentTime_milliseconds() {
         return std::chrono::duration_cast<std::chrono::milliseconds>
@@ -210,7 +137,7 @@ namespace EZDateTime {
 
     class CurrentDateTime {
     public:
-        enum MONTH_T{};
+//        enum MONTH_T{};
         CurrentDateTime() = default;
         ~CurrentDateTime() = default;
         EZTools::EZString ymdto() {
@@ -248,8 +175,8 @@ namespace EZDateTime {
         EZTools::EZString fancy() {
             LocalTime _dt;
             std::stringstream out;
-            out << intToDay(_dt.weekday()) << " " << intToMonth(_dt.month()) << " "
-                << _dt.day() << dateSuffix(_dt.day()) << ", " << _dt.year() << " "
+            out << EZTools::intToDay(_dt.weekday()) << " " << EZTools::intToMonth(_dt.month()) << " "
+                << _dt.day() << EZTools::dateSuffix(_dt.day()) << ", " << _dt.year() << " "
                 << std::setfill('0') << std::setw(2) << _dt.hourAMPM() << ":"
                 << std::setfill('0') << std::setw(2) << _dt.min() << " ";
             out << (_dt.isAM() ? "am" : "pm");
@@ -283,6 +210,17 @@ namespace EZDateTime {
             return out.str();
         }
     };
+
+    inline time_t dateTimeToTimeT(int month, int day, int year, int hour, int min, int sec) {
+        tm tmp = tm();
+        tmp.tm_mday = day;
+        tmp.tm_mon = month - 1;
+        tmp.tm_year = year - 1900;
+        tmp.tm_hour = hour;
+        tmp.tm_min = min;
+        tmp.tm_sec = sec;
+        return mktime(&tmp);
+    }
 
     class EZDT {
     public:
@@ -366,12 +304,26 @@ namespace EZDateTime {
         }
         EZTools::EZString fancy() {
             std::stringstream out;
-            out << intToDay(_dt.weekday()) << " " << intToMonth(_dt.month()) << " "
-                << _dt.day() << dateSuffix(_dt.day()) << ", " << _dt.year() << " "
+            out << EZTools::intToDay(_dt.weekday()) << " " << EZTools::intToMonth(_dt.month())
+                << " " << _dt.day() << EZTools::dateSuffix(_dt.day()) << ", " << _dt.year() << " "
                 << std::setfill('0') << std::setw(2) << _dt.hourAMPM() << ":"
                 << std::setfill('0') << std::setw(2) << _dt.min() << " ";
             out << (_dt.isAM() ? "am" : "pm");
             return out.str();
+        }
+        EZTools::EZString plusHours(int hours) {
+            std::stringstream ss;
+            std::cout << "DERP" << std::endl;
+            auto t = dateTimeToTimeT(_month, _day, _year, _hour, 0, 0);
+            auto tm = localtime(&t);
+            tm->tm_hour = tm->tm_hour + hours;
+            ss << tm->tm_mon << "/" << tm->tm_mday << " ";
+            if (tm->tm_hour > 12) {
+                ss << tm->tm_hour - 12 << "pm";
+            } else {
+                ss << tm->tm_hour << "am";
+            }
+            return ss.str();
         }
     private:
         LocalTime _dt;

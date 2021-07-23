@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,11 +34,18 @@ either expressed or implied, of the MRUtils project.
 #include <thread>
 #include <map>
 #include <zconf.h>
+#include <iomanip>
+#include <sys/statvfs.h>
 #include "EZTools.h"
+#include "subprocess.h"
+#include <fstream>
+#include "json.h"
+#include<stdlib.h>
+#include<unistd.h>
+#include<stdio.h>
+#include<fcntl.h>
 
 namespace EZLinux {
-
-    typedef std::vector<EZTools::EZString> PATHSTOR;
 
     inline void EZLongSleep(long minutes) {
         std::chrono::minutes timespan(minutes);
@@ -65,9 +72,9 @@ namespace EZLinux {
         }
     }
 
-    inline PATHSTOR path() {
+    inline EZTools::PATHSTOR path() {
         auto pstring = environmentVar("PATH");
-        PATHSTOR sp = pstring.split(":");
+        EZTools::PATHSTOR sp = pstring.split(":");
         return sp;
     }
 
@@ -98,9 +105,11 @@ namespace EZLinux {
         FILE *fp;
         std::stringstream output;
         char path[1035];
-        fp = popen(command.c_str(), "r");
+        std::stringstream ss;
+        ss << command << " 2>&1";
+        fp = popen(ss.str().c_str(), "r");
         if (fp == nullptr) {
-            ezReturn.message("Failed to run " + command);
+            ezReturn.message("");
             ezReturn.exitCode(42);
             return ezReturn;
         }
@@ -113,11 +122,223 @@ namespace EZLinux {
         return ezReturn;
     }
 
+    inline std::vector<EZTools::EZString> userGroups(EZTools::EZString username) {
+        std::stringstream ss;
+        ss << "groups " << username;
+        auto res = exec(ss.str());
+        auto ts = res.data.split(" ");
+        return ts;
+    }
+
+    inline EZTools::EZReturn<EZTools::EZString> subProcess(EZTools::EZString command) {
+        EZTools::EZReturn<EZTools::EZString> ezReturn;
+        std::vector<EZTools::EZString> cv;
+        std::vector<std::string> a;
+        EZTools::EZString c;
+        if (command.regexMatch("^stat --printf=")) {
+            auto ct = command.regexExtract("(stat) (--printf=\"[^\"]*\")");
+            c = ct.at(0);
+            a.emplace_back(ct.at(1));
+        } else {
+            cv = command.split(" ");
+            c = cv.at(0);
+            command.regexReplace(c+" ","");
+            auto aa = command.split(" ");
+            for (auto ap: aa) {
+                a.push_back(ap.str());
+            }
+        }
+        return ezReturn;
+    }
+
+    struct DiskInfo_t {
+        double value;
+        EZTools::EZString type;
+        EZTools::EZString string;
+    };
+
+    class DiskInfo {
+    public:
+        explicit DiskInfo(EZTools::EZString dir) {
+            _dir = dir;
+            struct statvfs stat;
+            if (statvfs(dir.c_str(), &stat) != 0) {
+                _diskfree = -1;
+            }
+            _diskfree = stat.f_bsize * stat.f_bavail;
+            _diskTotal = stat.f_bsize * stat.f_blocks;
+            _diskUsed = _diskTotal - _diskfree;
+        }
+        virtual ~DiskInfo() = default;
+        void update() {
+            struct statvfs stat;
+            if (statvfs(_dir.c_str(), &stat) != 0) {
+                _diskfree = -1;
+            }
+            _diskfree = stat.f_bsize * stat.f_bavail;
+            _diskTotal = stat.f_bsize * stat.f_favail;
+        }
+        unsigned long asGigs() const { return _diskfree / 1073741824; }
+        unsigned long asMegs() const { return _diskfree / 1024 / 1024; }
+        unsigned long asKb() const { return _diskfree / 1024; }
+        unsigned long asBytes() const { return _diskfree; }
+        DiskInfo_t free() {
+            DiskInfo_t t;
+            if (_diskfree < 1024) {
+                t.type = "b";
+                t.value = _diskfree;
+            } else if (_diskfree < 1048576) {
+                t.type = "k";
+                t.value = _diskfree / 1024;
+            } else if (_diskfree < 1073741824) {
+                t.type = "M";
+                t.value = _diskfree / 1024 / 1024;
+            } else if (_diskfree < 1099511627776) {
+                t.type = "G";
+                t.value = _diskfree / 1024 / 1024 / 1024;
+            } else {
+                t.type = "T";
+                t.value = _diskfree / 1024 / 1024 / 1024 / 1024;
+            }
+            std::stringstream ss;
+            ss << EZTools::round(t.value, 2) << t.type;
+            t.string = ss.str();
+            return t;
+        }
+        DiskInfo_t total() {
+            DiskInfo_t t;
+            if (_diskTotal < 1024) {
+                t.type = "b";
+                t.value = _diskTotal;
+            } else if (_diskTotal < 1048576) {
+                t.type = "k";
+                t.value = _diskTotal / 1024;
+            } else if (_diskTotal < 1073741824) {
+                t.type = "M";
+                t.value = _diskTotal / 1024 / 1024;
+            } else if (_diskTotal < 1099511627776) {
+                t.type = "G";
+                t.value = _diskTotal / 1024 / 1024 / 1024;
+            } else {
+                t.type = "T";
+                t.value = _diskTotal / 1024 / 1024 / 1024 / 1024;
+            }
+            std::stringstream ss;
+            ss << EZTools::round(t.value, 2) << t.type;
+            t.string = ss.str();
+            return t;
+        }
+        DiskInfo_t used() {
+            DiskInfo_t t;
+            if (_diskUsed < 1024) {
+                t.type = "b";
+                t.value = _diskUsed;
+            } else if (_diskUsed < 1048576) {
+                t.type = "k";
+                t.value = _diskUsed / 1024;
+            } else if (_diskUsed < 1073741824) {
+                t.type = "M";
+                t.value = _diskUsed / 1024 / 1024;
+            } else if (_diskUsed < 1099511627776) {
+                t.type = "G";
+                t.value = _diskUsed / 1024 / 1024 / 1024;
+            } else {
+                t.type = "T";
+                t.value = _diskUsed / 1024 / 1024 / 1024 / 1024;
+            }
+            std::stringstream ss;
+            ss << EZTools::round(t.value, 2) << t.type;
+            t.string = ss.str();
+            return t;
+        }
+        DiskInfo_t percentFree() {
+            DiskInfo_t t;
+            double p;
+            p = _diskfree / _diskTotal * 100;
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(2) << p << "%";
+            t.type = "Pe";
+            t.string = ss.str();
+            t.value = p;
+            return t;
+        }
+    private:
+        double _diskfree = 0;
+        double _diskTotal = 0;
+        double _diskUsed = 0;
+        EZTools::EZString _dir;
+    };
+
+    enum MOUNTS {
+        EZ_LOCAL,
+        EZ_REMOTE,
+        EZ_TMPFS,
+        EZ_FS_UNKNOWN
+    };
+
+    inline std::string mountsAsString(MOUNTS t) {
+        switch (t) {
+            case EZ_LOCAL:
+                return "Local";
+            case EZ_REMOTE:
+                return "Remote";
+            case EZ_TMPFS:
+                return "TmpFS";
+            case EZ_FS_UNKNOWN:
+                return "Unknown";
+        }
+        return "Unknown";
+    }
+
+    struct Mounts_t {
+        MOUNTS type;
+        EZTools::EZString mount;
+    };
+
+    class Mounts {
+    public:
+        Mounts() {
+            std::string lines;
+            std::stringstream f;
+            std::ifstream mtab ("/etc/mtab");
+            if (mtab.is_open()) {
+                while ( getline (mtab,lines) ) {
+                    f << lines << '\n';
+                }
+                mtab.close();
+            }
+            EZTools::EZString ms = f.str();
+            auto msv = ms.split("\n");
+            for (auto& line : msv) {
+                if (!line.empty()) {
+                    auto data = line.split(" ");
+                    if (data.at(0).regexMatch("^/|[:]|^tmpfs")) {
+                        Mounts_t t;
+                        t.type = EZ_FS_UNKNOWN;
+                        if (data.at(0).regexMatch("^/")) {
+                            t.type = EZ_LOCAL;
+                        } else if (data.at(0).regexMatch(":")) {
+                            t.type = EZ_REMOTE;
+                        } else if (data.at(0).regexMatch("^tmpfs")) {
+                            t.type = EZ_TMPFS;
+                        }
+                        t.mount = data.at(1);
+                        _mounts.emplace_back(t);
+                    }
+                }
+            }
+        }
+        ~Mounts() = default;
+        std::vector<Mounts_t> list() { return _mounts; }
+    private:
+        std::vector<Mounts_t> _mounts;
+    };
+
     class SystemdObject {
     public:
         SystemdObject() = default;
         SystemdObject(EZTools::EZString unit, EZTools::EZString load, EZTools::EZString active,
-                EZTools::EZString sub, EZTools::EZString description) {
+                      EZTools::EZString sub, EZTools::EZString description) {
             _unit = unit;
             _load = load;
             _active = active;
@@ -148,6 +369,7 @@ namespace EZLinux {
 
     inline EZTools::EZReturn<std::vector<SystemdObject>> systemdList() {
         EZTools::EZReturn<std::vector<SystemdObject>> res;
+        res.metaData.location = "EZLinux::systemdList";
         auto systemsdList = EZLinux::exec("/usr/bin/systemctl --no-pager");
         if (!systemsdList.wasSuccessful()) {
             res.message("Couldn't get systemd list");
@@ -181,6 +403,7 @@ namespace EZLinux {
     inline EZTools::EZReturn<SystemdObject> getSystemdService(EZTools::EZString serviceName) {
         std::vector<SystemdObject> res;
         EZTools::EZReturn<SystemdObject> ret;
+        ret.metaData.location = "EZLinux::getSystemdService";
         auto sdl = systemdList();
         if (sdl.wasSuccessful()) {
             for (auto sdo : sdl.data) {
@@ -202,12 +425,13 @@ namespace EZLinux {
         }
         ret.wasSuccessful(true);
         ret.data.init(res.at(0).unit(), res.at(0).load(), res.at(0).active(),
-                res.at(0).sub(), res.at(0).description());
+                      res.at(0).sub(), res.at(0).description());
         return ret;
     }
 
     inline EZTools::EZReturn<std::vector<SystemdObject>> getSystemdSub(EZTools::EZString subName) {
         EZTools::EZReturn<std::vector<SystemdObject>> res;
+        res.metaData.location = "EZLinux::getSystemdSub";
         auto sdl = systemdList();
         if (sdl.wasSuccessful()) {
             for (auto sdo : sdl.data) {
@@ -222,6 +446,108 @@ namespace EZLinux {
         res.wasSuccessful(true);
         return res;
     }
+
+    inline EZTools::EZReturn<nlohmann::json> whois(EZTools::EZString ipaddress) {
+        EZTools::EZReturn<nlohmann::json> ret;
+        auto res = EZLinux::subProcess("whois "+ipaddress);
+        std::cout << res.data << std::endl;
+        return ret;
+    }
+
+//    inline EZTools::TEST_RETURN TEST() {
+//        EZTools::TEST_RETURN res("EZLinux", false);
+//        auto env = environmentVar("EDITOR");
+//        if (env.empty()) {
+//            res.functionTest("environmentVar(\"EDITOR\")");
+//            res.message("Not found");
+//            return res;
+//        }
+//        res.output << "\tenvironmentVar(\"EDITOR\"): " << env << std::endl;
+//        auto p = path();
+//        if (p.empty()) {
+//            res.functionTest("path()");
+//            res.message("Empty");
+//            return res;
+//        }
+//        res.output << "path()" << std::endl;
+//        for (auto& pp : p) {
+//            res.output << "\t" << pp << std::endl;
+//        }
+//        auto h = hostname();
+//        if (h.empty()) {
+//            res.functionTest("hostname()");
+//            res.message("Empty");
+//            return res;
+//        }
+//        res.output << "hostname(): " << h << std::endl;
+//        res.output << "runningAsRoot(): " << std::boolalpha << runningAsRoot() << std::endl;
+//        res.output << "uid(): " << uid() << std::endl;
+//        auto w = whoami();
+//        if (w.empty()) {
+//            res.functionTest("whoami()");
+//            res.message("Empty");
+//            return res;
+//        }
+//        res.output << "whoami(): " << w << std::endl;
+//        auto ls = exec("ls");
+//        if (!ls.wasSuccessful()) {
+//            res.functionTest("exec(\"ls\")");
+//            res.message(ls.message());
+//            return res;
+//        }
+//        res.output << "exec(\"ls\"):" << std::endl;
+//        res.output << ls.data << std::endl;
+//        DiskInfo d("/");
+//        res.output << "DiskInfo:" << std::endl;
+//        res.output << "\tasGigs(): " << d.asGigs() << std::endl;
+//        res.output << "\tasMegs(): " << d.asMegs() << std::endl;
+//        res.output << "\tasKb(): " << d.asKb() << std::endl;
+//        res.output << "\tasBytes(): " << d.asBytes() << std::endl;
+//        res.output << "\td.free().string: " << d.free().string << std::endl;
+//        res.output << "\td.free().value: " << d.free().value << std::endl;
+//        res.output << "\td.total().string: " << d.total().string << std::endl;
+//        res.output << "\td.total().value: " << d.total().value << std::endl;
+//        res.output << "\td.used().string: " << d.used().string << std::endl;
+//        res.output << "\td.used().value: " << d.used().value << std::endl;
+//        res.output << "\td.percentFree().string: " << d.percentFree().string << std::endl;
+//        res.output << "\td.percentFree().value: " << d.percentFree().value << std::endl;
+//        Mounts m;
+//        res.output << "Mounts" << std::endl;
+//        for (auto& mm: m.list()) {
+//            res.output << "\t" << mountsAsString(mm.type) << " " << mm.mount << std::endl;
+//        }
+//        auto sdl = systemdList();
+//        if (!sdl.wasSuccessful()) {
+//            res.functionTest("systemdList()");
+//            res.message(sdl.message());
+//            return res;
+//        }
+//        res.output << "systemdList()";
+//        for (auto& s : sdl.data) {
+//            res.output << "\t'" << s.active() << "' '" << s.unit() << "' '" << s.sub() << "' '"
+//                       << s.description() << "'" << std::endl;
+//        }
+//        auto sss = getSystemdService("sssd");
+//        if (!sss.wasSuccessful()) {
+//            res.functionTest("getSystemdService(\"sssd\")");
+//            res.message(sss.message());
+//            return res;
+//        }
+//        res.output << "\tgetSystemdService(\"sssd\"): " << sss.data.active() << " "
+//                   << sss.data.unit() << std::endl;
+//        res.output << "getSystemdSub(\"active\")" << std::endl;
+//        auto sub = getSystemdSub("active");
+//        if (!sub.wasSuccessful()) {
+//            res.functionTest("getSystemdSub(\"active\")");
+//            res.message(sub.message());
+//            return res;
+//        }
+//        for (auto& a: sub.data) {
+//            res.output << "\t" << a.unit() << std::endl;
+//        }
+//        res.wasSuccessful(true);
+//        return res;
+//    }
 
 }
 

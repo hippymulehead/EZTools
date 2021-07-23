@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -60,6 +60,7 @@ namespace EZConfig {
         EZTools::EZString asString() { return root.dump(4); }
         static EZTools::EZReturn<bool> write() {
             EZTools::EZReturn<bool> res;
+            res.metaData.location = "EZConfig::isThere";
 //    EZFileStat stat(_filename);
 //    if (stat.isWriteable()) {
 //        if (isThere()) {

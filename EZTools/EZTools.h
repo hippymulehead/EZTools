@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The views and conclusions contained in the software and documentation are those
 of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of the EZTools project.
+either expressed or implied, of the MRUtils project.
 */
 
 #ifndef EZTOOLS_EZTOOLS_H
@@ -32,6 +32,7 @@ either expressed or implied, of the EZTools project.
 
 #include <iostream>
 #include <vector>
+#include <map>
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
@@ -41,9 +42,67 @@ either expressed or implied, of the EZTools project.
 #include <Poco/RegularExpression.h>
 #else
 #include <regex>
+#include <curl/curl.h>
+
 #endif
 
 namespace EZTools {
+
+//    class TEST_RETURN {
+//    public:
+//        TEST_RETURN(std::string TestName, bool success = false) {
+//            _success = success;
+//            _testName = TestName;
+//            output << std::endl;
+//            output << "-----------------------------------------" << std::endl;
+//            output << TestName << " - TESTS" << std::endl;
+//        }
+//        void message(std::string Message) {
+//            _message = Message;
+//        }
+//        std::string message() {
+//            std::stringstream ss;
+//            ss << _testName << ": " << _functionTest << ": " << _message;
+//            return ss.str();
+//        }
+//        void functionTest(std::string f) {
+//            _functionTest = f;
+//        }
+//        std::stringstream output;
+//        std::string testName() { return _testName; }
+//        void wasSuccessful(bool success) { _success = success; }
+//        bool wasSuccessful() { return _success; }
+//        std::string errorOutput() {
+//            std::stringstream ss;
+//            ss << output.str() << std::endl;
+//            ss << message() << std::endl;
+//            ss << "[[ ** FAILED ** ]]" << std::endl;
+//            return ss.str();
+//        }
+//        std::string successOutput() {
+//            std::stringstream ss;
+//            ss << output.str() << std::endl;
+//            ss << "[[ ** PASSED ** ]]" << std::endl;
+//            return ss.str();
+//        }
+//        std::string out() {
+//            if (_success) {
+//                return successOutput();
+//            } else {
+//                return errorOutput();
+//            }
+//        }
+//    private:
+//        std::string _functionTest;
+//        std::string _testName;
+//        std::string _message;
+//        bool _success;
+//    };
+
+    enum CLOSE {
+        SUCCESS, FAIL, ERROR
+    };
+
     /*
      * EZTools::EZString
      * EZString is a drop in replacement for std::string with a lot of methods added on.  Conversion, RegEx, init
@@ -89,19 +148,20 @@ namespace EZTools {
         }
         template<class InputIterator>
         EZString(InputIterator first, InputIterator last) : std::string(first, last) {}
+
         void join(EZString separator, std::vector<EZString> &list) {
             assign(list[0]);
-            for(uint i = 1; i < list.size(); i++) {
+            for (uint i = 1; i < list.size(); i++) {
                 append(separator);
                 append(list[i]);
             }
         }
         unsigned long int count(EZString s) const {
             uint total = 0;
-            size_t end,pos = 0;
-            while(true) {
-                end = find(s,pos);
-                if(end == std::string::npos)
+            size_t end, pos = 0;
+            while (true) {
+                end = find(s, pos);
+                if (end == std::string::npos)
                     break;
                 pos = end + s.size();
                 total++;
@@ -109,16 +169,15 @@ namespace EZTools {
             return total;
         }
         EZString &lower() {
-            for(char & i : *this) {
-                if(i >= 'A' && i <= 'Z') {
+            for (char &i : *this)
+                if (i >= 'A' && i <= 'Z') {
                     i += ('a' - 'A');
-                }
-            }
+                };
             return *this;
         }
         EZString &upper() {
-            for(char & i : *this) {
-                if(i >= 'a' && i <= 'z') {
+            for (char &i : *this) {
+                if (i >= 'a' && i <= 'z') {
                     i -= ('a' - 'A');
                 }
             }
@@ -128,8 +187,8 @@ namespace EZTools {
             if (length() == 0)
                 return false;
             else {
-                for(char i : *this) {
-                    if(i >= 'A' && i <= 'Z') {
+                for (char i : *this) {
+                    if (i >= 'A' && i <= 'Z') {
                         return false;
                     }
                 }
@@ -140,8 +199,8 @@ namespace EZTools {
             if (length() == 0)
                 return false;
             else {
-                for(char i : *this) {
-                    if(i >= 'a' && i <= 'z') {
+                for (char i : *this) {
+                    if (i >= 'a' && i <= 'z') {
                         return false;
                     }
                 }
@@ -150,11 +209,11 @@ namespace EZTools {
         }
         bool isInt() const {
             int Result;
-            if ((int)this->str()[0] < 10) {
+            if ((int) this->str()[0] < 10) {
                 return false;
             }
             std::istringstream convert(this->str());
-            if ( !(convert >> Result) ) {
+            if (!(convert >> Result)) {
                 Result = 0;
             }
             return Result != 0;
@@ -162,18 +221,18 @@ namespace EZTools {
         int asInt() const {
             if (this->isInt()) {
                 int i = 0;
-                std::istringstream (this->str()) >> i;
+                std::istringstream(this->str()) >> i;
                 return i;
             }
             return 0;
         }
         bool isLong() const {
             long Result;
-            if ((int)this->str()[0] < 10) {
+            if ((int) this->str()[0] < 10) {
                 return false;
             }
             std::istringstream convert(this->str());
-            if ( !(convert >> Result) ) {
+            if (!(convert >> Result)) {
                 Result = 0;
             }
             return Result != 0;
@@ -181,18 +240,18 @@ namespace EZTools {
         int asLong() const {
             if (this->isInt()) {
                 long i = 0;
-                std::istringstream (this->str()) >> i;
+                std::istringstream(this->str()) >> i;
                 return i;
             }
             return 0;
         }
         bool isUnsignedLong() const {
             unsigned long Result;
-            if ((int)this->str()[0] < 10) {
+            if ((int) this->str()[0] < 10) {
                 return false;
             }
             std::istringstream convert(this->str());
-            if ( !(convert >> Result) ) {
+            if (!(convert >> Result)) {
                 Result = 0;
             }
             return Result != 0;
@@ -200,35 +259,35 @@ namespace EZTools {
         unsigned long asUnsignedLong() const {
             if (this->isUnsignedLong()) {
                 unsigned long i = 0;
-                std::istringstream (this->str()) >> i;
+                std::istringstream(this->str()) >> i;
                 return i;
             }
             return 0;
         }
         bool isUnsignedLongLong() const {
             unsigned long Result;
-            if ((int)this->str()[0] < 10) {
+            if ((int) this->str()[0] < 10) {
                 return false;
             }
             std::istringstream convert(this->str());
-            if ( !(convert >> Result) ) {
+            if (!(convert >> Result)) {
                 Result = 0;
             }
             return Result != 0;
         }
         unsigned long long asUnsignedLongLong() const {
             unsigned long long i = 0;
-            std::istringstream (this->str()) >> i;
+            std::istringstream(this->str()) >> i;
             return i;
         }
         bool isFloat() const {
             int Result = 1;
             float f;
-            if ((int)this->str()[0] < 10) {
+            if ((int) this->str()[0] < 10) {
                 return false;
             }
             std::istringstream convert(this->str());
-            if ( !(convert >> f) ) {
+            if (!(convert >> f)) {
                 Result = 0;
             }
             return Result != 0;
@@ -236,7 +295,7 @@ namespace EZTools {
         float asFloat() const {
             if (this->isFloat()) {
                 float i = 0.0;
-                std::istringstream (this->str()) >> i;
+                std::istringstream(this->str()) >> i;
                 return i;
             }
             return 0.0;
@@ -244,11 +303,11 @@ namespace EZTools {
         bool isDouble() const {
             int Result = 1;
             double f;
-            if ((int)this->str()[0] < 10) {
+            if ((int) this->str()[0] < 10) {
                 return false;
             }
             std::istringstream convert(this->str());
-            if ( !(convert >> f) ) {
+            if (!(convert >> f)) {
                 Result = 0;
             }
             return Result != 0;
@@ -267,7 +326,7 @@ namespace EZTools {
         float asDouble() const {
             if (this->isDouble()) {
                 double i = 0.0;
-                std::istringstream (this->str()) >> i;
+                std::istringstream(this->str()) >> i;
                 return i;
             }
             return 0.0;
@@ -276,8 +335,8 @@ namespace EZTools {
             if (length() == 0)
                 return false;
             else {
-                for(char i : *this) {
-                    if((i < 'a' || i > 'z') && (i < 'A' || i > 'Z') && i != ' ') {
+                for (char i : *this) {
+                    if ((i < 'a' || i > 'z') && (i < 'A' || i > 'Z') && i != ' ') {
                         return false;
                     }
                 }
@@ -298,17 +357,18 @@ namespace EZTools {
             return matches > 0;
         }
 #else
+
         bool regexMatch(const EZString &regexString, bool caseInsensitive = false) {
             EZString str = *this;
             bool found = false;
             if (caseInsensitive) {
                 std::regex self_regex(regexString, std::regex_constants::ECMAScript | std::regex_constants::icase);
-                if (regex_search(str,self_regex)) {
+                if (regex_search(str, self_regex)) {
                     found = true;
                 }
             } else {
                 std::regex self_regex(regexString, std::regex_constants::ECMAScript);
-                if (regex_search(str,self_regex)) {
+                if (regex_search(str, self_regex)) {
                     found = true;
                 }
             }
@@ -330,20 +390,23 @@ namespace EZTools {
 
         }
 #else
+
         std::vector<EZString> regexExtract(EZString regexString) const {
-            std::vector<EZTools::EZString> ret;
+            std::vector<EZString> ret;
             std::regex e(regexString);
             std::sregex_iterator iter(this->begin(), this->end(), e);
             std::sregex_iterator end;
-            while(iter != end) {
-                for(unsigned i = 0; i < iter->size(); ++i) {
+            while (iter != end) {
+                for (unsigned i = 0; i < iter->size(); ++i) {
                     ret.push_back((*iter)[i].str());
                 }
                 ++iter;
             }
             return ret;
         }
+
 #endif
+
         std::vector<EZString> split(EZString delimiter) const {
             std::vector<EZString> ret;
             size_t pos = 0;
@@ -357,6 +420,13 @@ namespace EZTools {
         }
         std::vector<EZString> splitAtLast(EZString delimiter) const {
             auto splitpos = this->find_last_of(delimiter);
+            std::vector<EZString> ret;
+            ret.push_back(this->substr(0, splitpos));
+            ret.push_back(this->substr(splitpos + 1, (this->size() - (splitpos + 1))));
+            return ret;
+        }
+        std::vector<EZString> splitAtFirst(EZString delimiter) const {
+            auto splitpos = this->find_first_of(delimiter);
             std::vector<EZString> ret;
             ret.push_back(this->substr(0, splitpos));
             ret.push_back(this->substr(splitpos + 1, (this->size() - (splitpos + 1))));
@@ -376,9 +446,10 @@ namespace EZTools {
             return ret;
         }
 #else
-        std::vector<EZTools::EZString> regexSplit(EZTools::EZString regexString) {
-            EZTools::EZString str = this->str();
-            std::vector<EZTools::EZString> res;
+
+        std::vector<EZString> regexSplit(EZString regexString) {
+            EZString str = this->str();
+            std::vector<EZString> res;
             std::regex rgx(regexString);
             std::sregex_token_iterator iter(str.begin(), str.end(), rgx, -1);
             std::sregex_token_iterator end;
@@ -387,6 +458,7 @@ namespace EZTools {
             }
             return res;
         }
+
 #endif
         //
         // Below here the methods are chainable and inplace.
@@ -398,48 +470,57 @@ namespace EZTools {
             return *this;
         }
 #else
+
         EZString &regexReplace(EZString regexString, EZString replaceWith) {
             std::string str = this->str();
-            EZTools::EZString result;
+            EZString result;
             std::regex re(regexString);
             std::regex_replace(std::back_inserter(result), str.begin(),
-                    str.end(), re, replaceWith);
+                               str.end(), re, replaceWith);
             *this = result;
             return *this;
         }
+
 #endif
+
         EZString &removeNonPrintable() {
             this->regexReplace("[^\\x20-\\x7E]+", "");
             return *this;
         }
+
         EZString &chomp() {
             auto pos = this->find("\n");
-            *this = this->substr(0,pos);
+            *this = this->substr(0, pos);
             return *this;
         }
+
         EZString &chopAtLast(EZString delimiter) {
             auto pos = this->find_last_of(delimiter) - delimiter.length();
-            *this = this->substr(0,pos);
+            *this = this->substr(0, pos);
             return *this;
         }
+
         EZString &removeExtraSpaces() {
             while (this->regexMatch("  ")) {
                 this->regexReplace("[ ][ ]", " ");
             }
             return *this;
         }
+
         EZString &removeOpeningSpaces() {
             while (this->regexMatch("^ ")) {
                 this->regexReplace("^ ", "");
             }
             return *this;
         }
+
         EZString &removeTrailingSpaces() {
             while (this->regexMatch(" $")) {
                 this->regexReplace(" $", "");
             }
             return *this;
         }
+
         EZString &asHex() {
             std::stringstream ss;
             EZString st = *this;
@@ -449,15 +530,17 @@ namespace EZTools {
             *this = ss.str();
             return *this;
         }
+
         EZString &cat(EZString value) {
             std::stringstream ss;
             ss << *this << value;
             *this = ss.str();
             return *this;
         }
+
         EZString &replaceAll(const EZString &from, const EZString &to) {
             size_t start_pos = 0;
-            while((start_pos = this->find(from, start_pos)) != std::string::npos) {
+            while ((start_pos = this->find(from, start_pos)) != std::string::npos) {
                 this->replace(start_pos, from.length(), to);
                 start_pos += to.length();
             }
@@ -470,28 +553,31 @@ namespace EZTools {
      * The idea here is to give a http style response to any call you make.  No need for throws or any of the complexity,
      * just return with EZReturn<datatype> and check .wasSuccessful
      */
+    struct EZReturnMetaData {
+        bool wasSuccessful = false;
+        int exitCode = 0;
+        EZTools::EZString message;
+        EZTools::EZString location;
+    };
     template<class T>
     class EZReturn {
     public:
         EZReturn() = default;
         EZReturn(int exitCode, EZString message, T Data) {
-            _exitCode = exitCode;
-            _message = message;
+            metaData.exitCode = exitCode;
+            metaData.message = message;
             data = Data;
         }
-        ~EZReturn() = default;
-        bool wasSuccessful() { return _wasSuccessful; }
-        void wasSuccessful(bool success) { _wasSuccessful = success; }
-        int exitCode() { return _exitCode; }
-        void exitCode(int value) { _exitCode = value; }
-        EZString message() { return _message; }
-        void message(EZString value) { _message = value; }
-        T data;
 
-    private:
-        int _exitCode = 0;
-        EZString _message;
-        bool _wasSuccessful = false;
+        ~EZReturn() = default;
+        bool wasSuccessful() { return metaData.wasSuccessful; }
+        void wasSuccessful(bool success) { metaData.wasSuccessful = success; }
+        int exitCode() { return metaData.exitCode; }
+        void exitCode(int value) { metaData.exitCode = value; }
+        EZString message() { return metaData.message; }
+        void message(EZString value) { metaData.message = value; }
+        EZReturnMetaData metaData;
+        T data;
     };
 
     /*
@@ -513,7 +599,148 @@ namespace EZTools {
         return static_cast<T>(tmp);
     }
 
-    inline EZTools::EZString version() { return VERSION; }
+    inline EZString version() { return VERSION; }
+
+    typedef std::vector<std::vector<EZString> > ezcsv;
+
+    inline EZString intToMonth(int monthNumber) {
+        switch (monthNumber) {
+            case 1:
+                return "January";
+            case 2:
+                return "Feburary";
+            case 3:
+                return "March";
+            case 4:
+                return "April";
+            case 5:
+                return "May";
+            case 6:
+                return "June";
+            case 7:
+                return "July";
+            case 8:
+                return "August";
+            case 9:
+                return "September";
+            case 10:
+                return "October";
+            case 11:
+                return "November";
+            case 12:
+                return "December";
+            default:
+                return "";
+        }
+    }
+
+    inline EZString intToDay(int dayNumber) {
+        switch (dayNumber) {
+            case 0:
+                return "Sunday";
+            case 1:
+                return "Monday";
+            case 2:
+                return "Tuesday";
+            case 3:
+                return "Wednesday";
+            case 4:
+                return "Thursday";
+            case 5:
+                return "Friday";
+            case 6:
+                return "Saturady";
+            default:
+                return "";
+        }
+    }
+
+    inline EZString dateSuffix(int dayNumber) {
+        switch (dayNumber) {
+            case 1:
+                return "st";
+            case 21:
+                return "st";
+            case 31:
+                return "st";
+            case 2:
+                return "nd";
+            case 22:
+                return "nd";
+            case 3:
+                return "rd";
+            case 23:
+                return "rd";
+            default:
+                return "th";
+        }
+    }
+
+    enum BACKUPTYPE {
+        BACKUP_PREPEND, BACKUP_EXTENTION
+    };
+
+    enum STATFILETYPE {
+        UNK = 0, REG = 1, LNK = 2, DIR = 3, CHAR = 4, BLK = 5, FIFO = 6, SOCK = 7
+    };
+
+    enum ACCESSTYPE{AC_THERE, AC_READ, AC_WRITE, AC_ISDIR};
+
+    typedef std::map<char, EZTools::EZString> EZOpts;
+
+    enum CONNECTIONTYPE {HTTP, HTTPS};
+
+    enum INTERFACETYPE {WIFI, ETHERNET, LOCALHOST};
+
+    const EZString IPv4Regex = "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])";
+    const EZTools::EZString statString(R"(stat -L --printf="File: %n\nBytes: %s\nType: %F\nPerms: %A\nGID: %g\nGroup: %G\nOwnerID: %u\nOwner: %U\nCreate: %w\nAccess: %x\nMod: %y\n" )");
+
+
+    typedef std::vector<EZTools::EZString> PATHSTOR;
+
+    enum LOGLEVEL {
+        QUITE = 4,
+        CRITICAL = 3,
+        WARNING = 2,
+        INFO = 1,
+        DEBUG = 0
+    };
+
+    enum NAGIOS_EXIT_LEVELS {
+        NAG_OK = 0,
+        NAG_WARN = 1,
+        NAG_CRIT = 2,
+        NAG_UNKNOWN = 3
+    };
+
+
+
+    struct timeStamp_t {
+        EZString date;
+        EZString time;
+        EZString ms;
+        EZString offset;
+    };
+
+    struct EZProcess {
+        EZTools::EZString UID;
+        int PID;
+        int PPID;
+        int C;
+        EZTools::EZString STIME;
+        EZTools::EZString TTY;
+        EZTools::EZString TIME;
+        EZTools::EZString CMD;
+        EZTools::EZString BASECMD;
+
+        EZProcess(EZTools::EZString uid, int pid, int ppid, int c, EZTools::EZString stime, EZTools::EZString tty,
+                  EZTools::EZString ptime, EZTools::EZString cmd, EZTools::EZString basecmd)
+                : UID(move(uid)), PID(pid), PPID(ppid), C(c), STIME(move(stime)), TTY(move(tty)),TIME(move(ptime)),
+                  CMD(move(cmd)), BASECMD(move(basecmd)) {};
+
+        EZProcess() :
+                UID(""), PID(0), PPID(0), C(0), STIME(""), TTY(""), TIME(""), CMD(""), BASECMD("") {};
+    };
 
 }
 

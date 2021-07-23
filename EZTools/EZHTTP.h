@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2020, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -27,8 +27,8 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the MRUtils project.
 */
 
-#ifndef EZHTTP_EZHTTP2_H
-#define EZHTTP_EZHTTP2_H
+#ifndef EZT_EZHTTP_H
+#define EZT_EZHTTP_H
 
 #include <cstdio>
 #include <netdb.h>
@@ -39,19 +39,73 @@ either expressed or implied, of the MRUtils project.
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
-#include <iostream>
-#include <string>
 #include <sstream>
-#include <vector>
-#include <curl/curl.h>
-#include <map>
 #include "EZTools.h"
 #include "EZDateTime.h"
+#include "cxxurl/cxxurl_all.h"
+#include "json.h"
+using namespace CXXUrl;
 
 namespace EZHTTP {
 
-    enum CONNECT_T {HTTP_T, HTTPS_T};
+    class HTTP;
+
+    EZTools::EZString curlError(CURLcode code) {
+        std::stringstream ss;
+        ss << code << ": ";
+        switch (code) {
+            case CURLE_UNSUPPORTED_PROTOCOL:
+                ss << "Protocol not supported";
+                break;
+            case CURLE_FAILED_INIT:
+                ss << "Very early initialization code failed";
+                break;
+            case CURLE_URL_MALFORMAT:
+                ss << "The URL was not properly formatted";
+                break;
+            case CURLE_COULDNT_RESOLVE_HOST:
+                ss << "Couldn't resolve host";
+                break;
+            case CURLE_COULDNT_CONNECT:
+                ss << "Failed to connect() to host or proxy";
+                break;
+            case CURLE_REMOTE_ACCESS_DENIED:
+                ss << "Denied access to the resource given in the URL";
+                break;
+//            case CURLE_HTTP2:
+//                return "A problem was detected in the HTTP2 framing layer";
+            case CURLE_OUT_OF_MEMORY:
+                ss << "A memory allocation request failed";
+                break;
+            case CURLE_OPERATION_TIMEDOUT:
+                ss << "Operation timeout";
+                break;
+            case CURLE_SSL_CONNECT_ERROR:
+                ss << "A problem occurred somewhere in the SSL/TLS handshake";
+                break;
+            case CURLE_FUNCTION_NOT_FOUND:
+                ss <<  "Function not found. A required zlib function was not found.";
+                break;
+            case CURLE_BAD_FUNCTION_ARGUMENT:
+                ss << "Internal error. A function was called with a bad parameter.";
+                break;
+            case CURLE_INTERFACE_FAILED:
+                ss << "Interface error";
+                break;
+            case CURLE_TOO_MANY_REDIRECTS:
+                ss << "Too many redirects";
+                break;
+            case CURLE_GOT_NOTHING:
+                ss << "Got nothing from the server";
+                break;
+//            case CURLE_HTTP2_STREAM:
+//                return "Stream error in the HTTP/2 framing layer.";
+            default:
+                ss << "Other curl error, see response.code";
+                break;
+        }
+        return ss.str();
+    }
 
     class HTTPHeaders {
     public:
@@ -105,19 +159,18 @@ namespace EZHTTP {
             }
             return reqHeader;
         }
-        int responseCode() {
-            EZTools::EZString code;
-            auto hsv = as_string().split("\n");
-            for (auto& line : hsv) {
-                if (line.regexMatch("^HTTP/")) {
-                    auto csp = line.split(" ");
-                    code = csp.at(1);
-                }
-            }
-            return code.asInt();
-        }
     private:
         std::map<EZTools::EZString, EZTools::EZString> _headers;
+    };
+
+    struct HTTPResponseMetaData {
+        bool wasSuccessful = false;
+        long httpResponseCode = 0;
+        long curlCode = 0;
+        EZTools::EZString message;
+        int headerSize = 0;
+        float timeInMillis;
+        EZTools::EZString location;
     };
 
     class HTTPResponse {
@@ -126,29 +179,27 @@ namespace EZHTTP {
         ~HTTPResponse() = default;
         void data(std::string data) { _data = data; }
         EZTools::EZString data() { return _data; }
-        void responseCode(CURLcode code) { _code = code; }
-        CURLcode responseCode() { return _code; }
-        void wasSuccessful(bool success) { _success = success; }
-        bool wasSuccessful() { return _success; }
-        void message(std::string text) { _message = text; }
-        EZTools::EZString message() { return _message; }
-        void contentType(std::string type) { _contentType = type; }
-        EZTools::EZString contentType() { return _contentType; }
-        void headerSize(long size) { _headerSize = size; }
-        long headerSize() { return _headerSize; }
+        void responseCode(long code) { metaData.curlCode = code; }
+        long responseCode() { return metaData.curlCode; }
+        void httpCode(long code) {metaData.httpResponseCode = code; }
+        long httpCode() { return metaData.httpResponseCode; }
+        void wasSuccessful(bool success) { metaData.wasSuccessful = success; }
+        bool wasSuccessful() { return metaData.wasSuccessful; }
+        void message(std::string text) { metaData.message = text; }
+        EZTools::EZString message() { return metaData.message; }
+        void headerSize(long size) { metaData.headerSize = size; }
+        long headerSize() { return metaData.headerSize; }
         void headerString(EZTools::EZString headerstring) { _headers.init(headerstring); }
-        void responseTimeInMillis(float t) { _t = t; }
-        float responseTimeInMillis() { return _t; }
+        void responseTimeInMillis(float t) { metaData.timeInMillis = t; }
+        float responseTimeInMillis() { return metaData.timeInMillis; }
         HTTPHeaders headers() { return _headers; }
+        nlohmann::json asJSON() {
+            return nlohmann::json::parse(_data);
+        }
+        HTTPResponseMetaData metaData;
     private:
         EZTools::EZString _data;
-        CURLcode _code;
-        bool _success = false;
-        EZTools::EZString _message;
-        std::string _contentType;
-        long _headerSize = 0;
         HTTPHeaders _headers;
-        float _t;
     };
 
     class URI {
@@ -221,102 +272,51 @@ namespace EZHTTP {
         }
         float connectTime() { return _time; }
         bool isThere() {
-            thread_local HTTPResponse response;
-            thread_local std::stringstream result;
-            thread_local EZTools::EZString buffer;
-            thread_local EZTools::EZString headerbuffer;
-            thread_local CURL *conn = nullptr;
-            thread_local char errorBuffer[CURL_ERROR_SIZE];
-            thread_local long response_code;
-
-            conn = curl_easy_init();
-            curl_easy_reset(conn);
-            if(conn == nullptr) {
-                response.message("Failed to create CURL connection");
-                response.wasSuccessful(false);
-                return false;
+            std::ostringstream contentOutput;
+            std::ostringstream headers;
+            if (_username.empty()) {
+                Request request = RequestBuilder()
+                        .url(_URILocation)
+                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout)+"L")
+                        .verifySSL(_hasRealCert)
+                        .contentOutput(&contentOutput)
+                        .headerOutput(&headers)
+                        .userAgent(_ua)
+                        .noBody(true)
+                        .build();
+                auto const res = request.get();
+                return res.getCode() == CURLE_OK;
+            } else {
+                Request request = RequestBuilder()
+                        .url(_URILocation)
+                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout)+"L")
+                        .curlOptionString(CURLOPT_USERNAME, _username)
+                        .curlOptionString(CURLOPT_PASSWORD, _password)
+                        .verifySSL(_hasRealCert)
+                        .contentOutput(&contentOutput)
+                        .headerOutput(&headers)
+                        .userAgent(_ua)
+                        .noBody(true)
+                        .build();
+                auto const res = request.get();
+                return res.getCode() == CURLE_OK;
             }
-
-            curl_easy_setopt(conn, CURLOPT_TIMEOUT, _timeout);
-
-            if (_URILocation.regexMatch("^https://")) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYHOST, _hasRealCert));
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, _hasRealCert));
-            }
-
-            if (!_username.empty()) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_USERNAME, _username.c_str()));
-                if (response.responseCode() != CURLE_OK) {
-                    return false;
-                }
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_PASSWORD, _password.c_str()));
-                if (response.responseCode() != CURLE_OK) {
-                    return false;
-                }
-            }
-
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_NOBODY, 1L));
-            if (response.responseCode() != CURLE_OK) {
-                return false;
-            }
-
-            struct curl_slist *chunk = nullptr;
-            for (auto & _header : _headers.as_stringList()) {
-                chunk = curl_slist_append(chunk, _header.c_str());
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_HTTPHEADER, chunk));
-                if (response.responseCode() != CURLE_OK) {
-                    return false;
-                }
-            }
-
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_USERAGENT, _ua.c_str()));
-            if (response.responseCode() != CURLE_OK) {
-                return false;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L));
-            if (response.responseCode() != CURLE_OK) {
-                return false;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_ERRORBUFFER, errorBuffer));
-            if(response.responseCode() != CURLE_OK) {
-                return false;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_URL, _URILocation.c_str()));
-            if(response.responseCode() != CURLE_OK) {
-                return false;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_FOLLOWLOCATION, 1L));
-            if (response.responseCode() != CURLE_OK) {
-                return false;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, writer));
-            if(response.responseCode() != CURLE_OK) {
-                return false;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_WRITEDATA, &buffer));
-            if(response.responseCode() != CURLE_OK) {
-                return false;
-            }
-            curl_easy_setopt(conn, CURLOPT_HEADER, 1);
-
-            EZDateTime::Timer et;
-            et.start();
-            response.responseCode(curl_easy_perform(conn));
-            et.stop();
-            response.responseTimeInMillis(et.asMillisenconds());
-
-            curl_easy_cleanup(conn);
-
-            return response.responseCode() == CURLE_OK;
         }
         int timeout() { return _timeout; }
         bool hasRealCert() { return _hasRealCert; }
         EZTools::EZString username() { return _username; }
         EZTools::EZString password() { return _password; }
+        void auth(EZTools::EZString username, EZTools::EZString password) {
+            _username = username;
+            _password = password;
+        }
+        void timeout(int Timeout) { _timeout = Timeout; }
+        EZTools::EZString userAgent() { return _ua; }
+        void userAgent(EZTools::EZString useragent) { _ua = useragent; }
+        void requestHeaders(HTTPHeaders headers) { _requestHeaders = headers; }
+        HTTPHeaders requestHeaders() { return _requestHeaders; }
 
     private:
-        HTTPHeaders _headers;
-        HTTPHeaders _reqHeader;
         EZTools::EZString _ua = "EZHTTPURI by Michael Romans";
         float _time;
         int _timeout = 15;
@@ -327,6 +327,7 @@ namespace EZHTTP {
         int _port;
         EZTools::EZString _URILocation;
         EZTools::EZString _basepath;
+        HTTPHeaders _requestHeaders;
 
         EZTools::EZString pathType(URI_T type) {
             switch (type) {
@@ -337,13 +338,6 @@ namespace EZHTTP {
                 default:
                     return "Unknown";
             }
-        }
-
-        static size_t writer(char *data, size_t size, size_t nmemb, EZTools::EZString *writerData) {
-            if (writerData == nullptr)
-                return 0;
-            writerData->append(data, size * nmemb);
-            return size * nmemb;
         }
     };
 
@@ -357,266 +351,87 @@ namespace EZHTTP {
             _follow = follow;
         }
         ~HTTP() = default;
-        HTTPResponse get(URI uri, bool verbose = false) {
+        HTTPResponse get(URI uri, bool headerOnly = false) {
+            _uri = uri;
             _username = uri.username();
             _password = uri.password();
             _timeout = uri.timeout();
-            thread_local HTTPResponse response;
-            thread_local std::stringstream result;
-            thread_local EZTools::EZString buffer;
-            thread_local EZTools::EZString headerbuffer;
-            thread_local CURL *conn = nullptr;
-            thread_local char errorBuffer[CURL_ERROR_SIZE];
-            thread_local long response_code;
-
-            conn = curl_easy_init();
-            curl_easy_reset(conn);
-            if(conn == nullptr) {
-                response.message("Failed to create CURL connection");
-                response.wasSuccessful(false);
-                return response;
-            }
-
-            curl_easy_setopt(conn, CURLOPT_TIMEOUT, _timeout);
-
-            if (uri.path().regexMatch("^https://")) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYHOST, _hasRealCert));
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, _hasRealCert));
-            }
-
-            if (!_username.empty()) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_USERNAME, _username.c_str()));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
-                }
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_PASSWORD, _password.c_str()));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
+            EZDateTime::Timer t;
+            t.start();
+            std::ostringstream contentOutput;
+            std::ostringstream headers;
+            CXXUrl::RequestHeader RH;
+            if (!_uri.requestHeaders().as_map().empty()) {
+                for (auto& rh : _uri.requestHeaders().as_map()) {
+                    std::stringstream ss;
+                    ss << rh.first << ": " << rh.second;
+                    RH.add(ss.str());
                 }
             }
-
-            struct curl_slist *chunk = nullptr;
-            for (auto & _header : _headers.as_stringList()) {
-                chunk = curl_slist_append(chunk, _header.c_str());
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_HTTPHEADER, chunk));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
+            if (_uri.username().empty()) {
+                Request request = RequestBuilder()
+                        .url(_uri.path())
+                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout))
+                        .followLocation(_follow)
+                        .verifySSL(_uri.hasRealCert())
+                        .contentOutput(&contentOutput)
+                        .headerOutput(&headers)
+                        .userAgent(_uri.userAgent())
+                        .noBody(headerOnly)
+                        .requestHeader(&RH)
+                        .build();
+                auto const res = request.get();
+                EZTools::EZString mes;
+                bool ws = true;
+                if (res.getCode() != CURLE_OK) {
+                    mes = curlError(res.getCode());
+                    ws = false;
                 }
-            }
-
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_USERAGENT, _ua.c_str()));
-            if (response.responseCode() != CURLE_OK) {response.message(curlError(response.responseCode()));
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L));
-            if (response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_ERRORBUFFER, errorBuffer));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_URL, uri.path().c_str()));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            if (_follow) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_FOLLOWLOCATION, 1L));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
+                t.stop();
+                HTTPResponse hres;
+                hres.data(contentOutput.str());
+                hres.headerString(headers.str());
+                hres.httpCode(res.getHTTPCode());
+                hres.responseCode(res.getCode());
+                hres.wasSuccessful(res.getCode() == CURLE_OK);
+                hres.responseTimeInMillis(t.asMillisenconds());
+                hres.message(curlError(res.getCode()));
+                return hres;
+            } else {
+                Request request = RequestBuilder()
+                        .url(_uri.path())
+                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout))
+                        .curlOptionString(CURLOPT_USERNAME, _uri.username())
+                        .curlOptionString(CURLOPT_PASSWORD, _uri.password())
+                        .followLocation(_follow)
+                        .verifySSL(_uri.hasRealCert())
+                        .contentOutput(&contentOutput)
+                        .headerOutput(&headers)
+                        .userAgent(_uri.userAgent())
+                        .noBody(headerOnly)
+                        .requestHeader(&RH)
+                        .build();
+                auto const res = request.get();
+                EZTools::EZString mes;
+                bool ws = true;
+                if (res.getCode() != CURLE_OK) {
+                    mes = curlError(res.getCode());
+                    ws = false;
                 }
+                t.stop();
+                HTTPResponse hres;
+                hres.data(contentOutput.str());
+                hres.headerString(headers.str());
+                hres.httpCode(res.getHTTPCode());
+                hres.responseCode(res.getCode());
+                hres.wasSuccessful(res.getCode() == CURLE_OK);
+                hres.responseTimeInMillis(t.asMillisenconds());
+                hres.message(curlError(res.getCode()));
+                return hres;
             }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, writer));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_WRITEDATA, &buffer));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            curl_easy_setopt(conn, CURLOPT_HEADER, 1);
-
-            EZDateTime::Timer et;
-            et.start();
-            response.responseCode(curl_easy_perform(conn));
-            et.stop();
-            response.responseTimeInMillis(et.asMillisenconds());
-
-            curl_easy_cleanup(conn);
-
-            if(response.responseCode() != CURLE_OK) {
-                response.message(this->curlError(response.responseCode()));
-                return response;
-            }
-            curl_easy_getinfo(conn, CURLINFO_RESPONSE_CODE, &response_code);
-            std::vector<EZTools::EZString> resSplit = buffer.split("\n");
-            int i = 0;
-            std::stringstream hstring, bstring;
-            for (auto& line : resSplit) {
-                line.removeNonPrintable();
-                if (line == "") {
-                    i = 1;
-                } else {
-                    switch (i) {
-                        case 0:
-                            hstring << line << "\n";
-                            break;
-                        case 1:
-                            bstring << line << "\n";
-                            break;
-                    }
-                }
-            }
-            response.data(bstring.str());
-            response.headerString(hstring.str());
-            buffer = "";
-            response.wasSuccessful(response.responseCode() == CURLE_OK);
-            return response;
         }
-        HTTPResponse head(URI uri, bool verbose = false) {
-            _username = uri.username();
-            _password = uri.password();
-            _timeout = uri.timeout();
-            thread_local HTTPResponse response;
-            thread_local std::stringstream result;
-            thread_local EZTools::EZString buffer;
-            thread_local EZTools::EZString headerbuffer;
-            thread_local CURL *conn = nullptr;
-            thread_local char errorBuffer[CURL_ERROR_SIZE];
-            thread_local long response_code;
-            conn = curl_easy_init();
-            curl_easy_reset(conn);
-            if(conn == nullptr) {
-                response.message("Failed to create CURL connection");
-                response.wasSuccessful(false);
-                return response;
-            }
-
-            curl_easy_setopt(conn, CURLOPT_TIMEOUT, _timeout);
-
-            if (uri.path().regexMatch("^https://")) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYHOST, _hasRealCert));
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, _hasRealCert));
-            }
-
-            if (!_username.empty()) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_USERNAME, _username.c_str()));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
-                }
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_PASSWORD, _password.c_str()));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
-                }
-            }
-
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_NOBODY, 1L));
-            if (response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-
-            struct curl_slist *chunk = nullptr;
-            for (auto & _header : _headers.as_stringList()) {
-                chunk = curl_slist_append(chunk, _header.c_str());
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_HTTPHEADER, chunk));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
-                }
-            }
-
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_USERAGENT, _ua.c_str()));
-            if (response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_VERBOSE, 0L));
-            if (response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_ERRORBUFFER, errorBuffer));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_URL, uri.path().c_str()));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            if (_follow) {
-                response.responseCode(curl_easy_setopt(conn, CURLOPT_FOLLOWLOCATION, 1L));
-                if (response.responseCode() != CURLE_OK) {
-                    response.message(curlError(response.responseCode()));
-                    return response;
-                }
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, writer));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                response.wasSuccessful(false);
-                return response;
-            }
-            response.responseCode(curl_easy_setopt(conn, CURLOPT_WRITEDATA, &buffer));
-            if(response.responseCode() != CURLE_OK) {
-                response.message(curlError(response.responseCode()));
-                return response;
-            }
-            curl_easy_setopt(conn, CURLOPT_HEADER, 1);
-
-            EZDateTime::Timer et;
-            et.start();
-            response.responseCode(curl_easy_perform(conn));
-            et.stop();
-            response.responseTimeInMillis(et.asMillisenconds());
-
-            curl_easy_cleanup(conn);
-
-            if(response.responseCode() != CURLE_OK) {
-                response.message(this->curlError(response.responseCode()));
-                return response;
-            }
-            curl_easy_getinfo(conn, CURLINFO_RESPONSE_CODE, &response_code);
-            std::vector<EZTools::EZString> resSplit = buffer.split("\n");
-            int i = 0;
-            std::stringstream hstring, bstring;
-            for (auto& line : resSplit) {
-                line.removeNonPrintable();
-                if (line == "") {
-                    i = 1;
-                } else {
-                    switch (i) {
-                        case 0:
-                            hstring << line << "\n";
-                            break;
-                        case 1:
-                            bstring << line << "\n";
-                            break;
-                    }
-                }
-            }
-            response.headerString(hstring.str());
-            buffer = "";
-            response.wasSuccessful(response.responseCode() == CURLE_OK);
-            return response;
-        }
-
-        void follow(bool follow) { _follow = follow; }
-        bool follow() { return _follow; }
-        HTTPHeaders requestHeader() { return _reqHeader; }
+        void follow(bool Follow) { _follow = Follow; }
+        void hasGoodCert(bool goodCert) { _verifySSL = goodCert; }
         void requestHeader(HTTPHeaders reqHeader) { _reqHeader = reqHeader; }
         void setAuth(EZTools::EZString username, EZTools::EZString password) {
             _username = username;
@@ -626,84 +441,16 @@ namespace EZHTTP {
         EZTools::EZString userAgent() { return _ua; }
 
     private:
-        HTTPHeaders _headers;
-        HTTPHeaders _reqHeader;
-        bool _hasRealCert = true;
-        EZTools::EZString _ua = "Block me because I'm lazy";
+        URI _uri;
+        bool _follow = false;
+        bool _verifySSL = true;
         int _timeout = 15;
-        bool _follow = true;
+        EZTools::EZString _ua;
         EZTools::EZString _username;
         EZTools::EZString _password;
-        bool _isGood;
-        int _port;
-        float _time;
-
-        static size_t writer(char *data, size_t size, size_t nmemb, EZTools::EZString *writerData) {
-            if (writerData == nullptr)
-                return 0;
-            writerData->append(data, size * nmemb);
-            return size * nmemb;
-        }
-
-        EZTools::EZString curlError(CURLcode code) {
-            std::stringstream ss;
-            ss << code << ": ";
-            switch (code) {
-                case CURLE_UNSUPPORTED_PROTOCOL:
-                    ss << "Protocol not supported";
-                    break;
-                case CURLE_FAILED_INIT:
-                    ss << "Very early initialization code failed";
-                    break;
-                case CURLE_URL_MALFORMAT:
-                    ss << "The URL was not properly formatted";
-                    break;
-                case CURLE_COULDNT_RESOLVE_HOST:
-                    ss << "Couldn't resolve host";
-                    break;
-                case CURLE_COULDNT_CONNECT:
-                    ss << "Failed to connect() to host or proxy";
-                    break;
-                case CURLE_REMOTE_ACCESS_DENIED:
-                    ss << "Denied access to the resource given in the URL";
-                    break;
-//            case CURLE_HTTP2:
-//                return "A problem was detected in the HTTP2 framing layer";
-                case CURLE_OUT_OF_MEMORY:
-                    ss << "A memory allocation request failed";
-                    break;
-                case CURLE_OPERATION_TIMEDOUT:
-                    ss << "Operation timeout";
-                    break;
-                case CURLE_SSL_CONNECT_ERROR:
-                    ss << "A problem occurred somewhere in the SSL/TLS handshake";
-                    break;
-                case CURLE_FUNCTION_NOT_FOUND:
-                    ss <<  "Function not found. A required zlib function was not found.";
-                    break;
-                case CURLE_BAD_FUNCTION_ARGUMENT:
-                    ss << "Internal error. A function was called with a bad parameter.";
-                    break;
-                case CURLE_INTERFACE_FAILED:
-                    ss << "Interface error";
-                    break;
-                case CURLE_TOO_MANY_REDIRECTS:
-                    ss << "Too many redirects";
-                    break;
-                case CURLE_GOT_NOTHING:
-                    ss << "Got nothing from the server";
-                    break;
-//            case CURLE_HTTP2_STREAM:
-//                return "Stream error in the HTTP/2 framing layer.";
-                default:
-                    ss << "Other curl error, see response.code";
-                    break;
-            }
-            return ss.str();
-        }
+        HTTPHeaders _reqHeader;
     };
 
-};
+}
 
-
-#endif //EZHTTP2_EZHTTP2_H
+#endif //EZT_EZHTTP_H

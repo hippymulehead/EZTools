@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The views and conclusions contained in the software and documentation are those
 of the authors and should not be interpreted as representing official policies,
-either expressed or implied, of the EZTools project.
+either expressed or implied, of the MRUtils project.
 */
 
 #ifndef EZT_EZAPPLICATION_H
@@ -36,141 +36,125 @@ either expressed or implied, of the EZTools project.
 #include <csignal>
 #include "EZTools.h"
 #include "EZGetOpt.h"
-#include "EZOutput.h"
+#include "EZScreen.h"
 #include "EZHTTP.h"
 #include "EZIP.h"
 #include "EZConfig.h"
 #include "EZLogger.h"
 #include "EZNagios.h"
+#include "EZCGI.h"
+#include "EZHTML.h"
 
-class EZApplication {
-public:
-    EZApplication(int argc, char* argv[], EZTools::EZString appName, EZTools::EZString appVersion = VERSION) {
-        _appName = appName;
-        _appVersion = appVersion;
-        getOpt->init(argc, argv, _appName, _appVersion);
-    }
-    ~EZApplication() {
-        free(getOpt);
-    }
-    EZGetOpt::GetOpt *getOpt = new EZGetOpt::GetOpt;
-    EZDateTime::CurrentDateTime *currentDateTime = new EZDateTime::CurrentDateTime;
+namespace EZTools {
 
-private:
-    EZTools::EZString _appName;
-    EZTools::EZString _appVersion;
-};
-
-class EZNagiosPlugin : public EZApplication {
-public:
-    EZNagiosPlugin(int argc, char *argv[], EZTools::EZString appName, EZTools::EZString appVersion = VERSION)
-            : EZApplication(argc, argv, appName, appVersion) {
-        _appName = appName;
-        _appVersion = appVersion;
-        getOpt->init(argc, argv, _appName, _appVersion);
-    }
-    ~EZNagiosPlugin() {
-        free(http);
-    }
-    //EZOutput::EZScreen::ScreenOutput out;
-    EZHTTP::HTTP *http = new EZHTTP::HTTP("EZTools v4 Testing");
-    //EZConfig::Config *config = new EZConfig::Config;
-    //EZLogger::Logger log;
-    //EZIP::LocalIPAddress *localIPAddress = new EZIP::LocalIPAddress();
-    EZNagios::Nagios nagios;
-
-private:
-    EZTools::EZString _appName;
-    EZTools::EZString _appVersion;
-};
-
-class EZTestApplication : public EZApplication {
-public:
-    EZTestApplication(int argc, char *argv[], EZTools::EZString appName, EZTools::EZString appVersion = VERSION)
-            : EZApplication(argc, argv, appName, appVersion) {
-        _appName = appName;
-        _appVersion = appVersion;
-        getOpt->init(argc, argv, _appName, _appVersion);
-    }
-    ~EZTestApplication() {
-        free(http);
-        free(config);
-    }
-    EZOutput::EZScreen::ScreenOutput out;
-    EZHTTP::HTTP *http = new EZHTTP::HTTP("EZTools v4 Testing");
-    EZConfig::Config *config = new EZConfig::Config;
-    EZLogger::Logger log;
-    //EZIP::LocalIPAddress *localIPAddress = new EZIP::LocalIPAddress();
-
-private:
-    EZTools::EZString _appName;
-    EZTools::EZString _appVersion;
-};
-
-class EZDaemon : public EZApplication {
-public:
-    EZDaemon(int argc, char *argv[], EZTools::EZString appName, EZTools::EZString pidFileLocation,
-             EZTools::EZString appVersion = VERSION)
-            : EZApplication(argc, argv, appName, appVersion) {
-        _appName = appName;
-        _appVersion = appVersion;
-        getOpt->init(argc, argv, _appName, _appVersion);
-        _pidFileLocation = pidFileLocation;
-    }
-    ~EZDaemon() {
-        free(config);
-    }
-    EZConfig::Config *config = new EZConfig::Config;
-    EZLogger::Logger log;
-//    EZIP::LocalIPAddress *localIPAddress = new EZIP::LocalIPAddress();
-    void daemonize() {
-        EZFiles::URI pidfile(_pidFileLocation);
-        if (pidfile.isThere()) {
-            std::cout << "pid file already found at " << _pidFileLocation << std::endl;
+    class EZApplication {
+    public:
+        EZApplication(int argc, char *argv[], EZTools::EZString appName,
+                EZTools::EZString appVersion = VERSION) {
+            _appName = appName;
+            _appVersion = appVersion;
+            getOpt.init(argc, argv, _appName, _appVersion);
         }
-        pid_t pid, sid;
-        pid = fork();
-        std::stringstream ss;
-        ss << getpid();
-        if(pid > 0) {
-            exit(EXIT_SUCCESS);
-        } else if(pid < 0) {
-            exit(EXIT_FAILURE);
-        }
-        umask(0);
-        sid = setsid();
-        if(sid < 0) {
-            exit(EXIT_FAILURE);
-        }
-        if((chdir("/")) < 0) {
-            exit(EXIT_FAILURE);
-        }
-        auto res = EZFiles::copyStringToFile(ss.str(), pidfile);
-        if (!res.wasSuccessful()) {
-            std::cout << res.message() << std::endl;
-            _shouldExit = true;
-        }
-        close(STDIN_FILENO);
-        close(STDOUT_FILENO);
-        close(STDERR_FILENO);
-    }
-    bool shouldExit() { return _shouldExit; }
-    void shouldExit(bool quit) {
-        _shouldExit = quit;
-    }
-    void signalHandler( int signum ) {
-        shouldExit(true);
-    }
-    void cleanup() {
-        EZFiles::URI pidfile(_pidFileLocation);
-        EZFiles::deleteFile(pidfile);
-    }
 
-private:
-    EZTools::EZString _appName;
-    EZTools::EZString _appVersion;
-    bool _shouldExit = false;
-    EZTools::EZString _pidFileLocation;
-};
+        ~EZApplication() = default;
+
+        EZGetOpt::GetOpt getOpt;
+
+        virtual void close(EZTools::CLOSE exitType, EZTools::EZString message = "", int errorNo = 0) {
+            if (!message.empty() & (exitType != EZTools::CLOSE::SUCCESS)) {
+                std::cerr << message << std::endl;
+            }
+            switch (exitType) {
+                case EZTools::CLOSE::SUCCESS:
+                    exit(0);
+                case EZTools::CLOSE::FAIL:
+                    exit(1);
+                case EZTools::CLOSE::ERROR:
+                    exit(errorNo);
+            }
+        }
+
+    private:
+        EZTools::EZString _appName;
+        EZTools::EZString _appVersion;
+    };
+
+    class EZNagiosPlugin : public EZApplication {
+    public:
+        EZNagiosPlugin(int argc, char *argv[], EZTools::EZString appName,
+                EZTools::EZString appVersion = VERSION)
+                : EZApplication(argc, argv, appName, appVersion) {
+            _appName = appName;
+            _appVersion = appVersion;
+            getOpt.init(argc, argv, _appName, _appVersion);
+        }
+
+        ~EZNagiosPlugin() = default;
+
+        EZHTTP::HTTP http;
+        EZNagios::Nagios nagios;
+
+    private:
+        EZTools::EZString _appName;
+        EZTools::EZString _appVersion;
+    };
+
+    class EZApp : public EZApplication {
+    public:
+        EZApp(int argc, char *argv[], EZTools::EZString appName, EZTools::EZString appVersion = VERSION)
+                : EZApplication(argc, argv, appName, appVersion) {
+            _appName = appName;
+            _appVersion = appVersion;
+            EZScreen::initScreen();
+            getOpt.init(argc, argv, _appName, _appVersion);
+        }
+
+        ~EZApp() = default;
+
+        EZScreen::TerminalInput in;
+        EZHTTP::HTTP http;
+        EZConfig::Config config;
+        EZLogger::Logger log;
+
+    private:
+        EZTools::EZString _appName;
+        EZTools::EZString _appVersion;
+    };
+
+    class EZSimpleApp : public EZApplication {
+    public:
+        EZSimpleApp(int argc, char *argv[], EZTools::EZString appName, EZTools::EZString appVersion = VERSION)
+                : EZApplication(argc, argv, appName, appVersion) {
+            _appName = appName;
+            _appVersion = appVersion;
+            EZScreen::initScreen();
+            getOpt.init(argc, argv, _appName, _appVersion);
+        }
+        ~EZSimpleApp() = default;
+
+        EZScreen::TerminalInput in;
+        EZHTTP::HTTP http;
+    private:
+        EZTools::EZString _appName;
+        EZTools::EZString _appVersion;
+    };
+
+    class SimpleApp : public EZApplication {
+    public:
+        SimpleApp(int argc, char *argv[], EZTools::EZString appName, EZTools::EZString appVersion = VERSION)
+                : EZApplication(argc, argv, appName, appVersion) {
+            _appName = appName;
+            _appVersion = appVersion;
+            getOpt.init(argc, argv, _appName, _appVersion);
+        }
+        ~SimpleApp() = default;
+
+        EZHTTP::HTTP http;
+    private:
+        EZTools::EZString _appName;
+        EZTools::EZString _appVersion;
+    };
+
+}
 
 #endif //EZT_EZAPPLICATION_H

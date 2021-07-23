@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,18 +34,11 @@ either expressed or implied, of the MRUtils project.
 
 namespace EZNagios {
 
-    enum _NAGIOS_EXIT_LEVELS_T {
-        NAG_OK = 0,
-        NAG_WARN = 1,
-        NAG_CRIT = 2,
-        NAG_UNKNOWN = 3
-    };
-
     class Nagios {
     public:
         Nagios() = default;
         ~Nagios() = default;
-        void exit(_NAGIOS_EXIT_LEVELS_T exitLevel) {
+        void exit(EZTools::NAGIOS_EXIT_LEVELS exitLevel) {
             std::cout << NAGEXITLEVELSAsEZSting(exitLevel) << _message.str() << std::endl;
             std::exit(exitLevel);
         }
@@ -57,13 +50,13 @@ namespace EZNagios {
             log._message << op;
             return log._message;
         }
-        static EZTools::EZString NAGEXITLEVELSAsEZSting(_NAGIOS_EXIT_LEVELS_T exitLevel) {
+        static EZTools::EZString NAGEXITLEVELSAsEZSting(EZTools::NAGIOS_EXIT_LEVELS exitLevel) {
             switch (exitLevel) {
-                case NAG_OK:
+                case EZTools::NAGIOS_EXIT_LEVELS::NAG_OK:
                     return "OK: ";
-                case NAG_WARN:
+                case EZTools::NAGIOS_EXIT_LEVELS::NAG_WARN:
                     return "WARNING: ";
-                case NAG_CRIT:
+                case EZTools::NAGIOS_EXIT_LEVELS::NAG_CRIT:
                     return "CRITICAL: ";
                 default:
                     return "UNKNOWN: ";

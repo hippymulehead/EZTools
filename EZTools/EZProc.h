@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2021, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,26 +35,6 @@ either expressed or implied, of the MRUtils project.
 #include "EZLinux.h"
 
 namespace EZProc {
-
-    struct EZProcess {
-        EZTools::EZString UID;
-        int PID;
-        int PPID;
-        int C;
-        EZTools::EZString STIME;
-        EZTools::EZString TTY;
-        EZTools::EZString TIME;
-        EZTools::EZString CMD;
-        EZTools::EZString BASECMD;
-
-        EZProcess(EZTools::EZString uid, int pid, int ppid, int c, EZTools::EZString stime, EZTools::EZString tty,
-                  EZTools::EZString ptime, EZTools::EZString cmd, EZTools::EZString basecmd)
-                : UID(move(uid)), PID(pid), PPID(ppid), C(c), STIME(move(stime)), TTY(move(tty)),TIME(move(ptime)),
-                  CMD(move(cmd)), BASECMD(move(basecmd)) {};
-
-        EZProcess() :
-                UID(""), PID(0), PPID(0), C(0), STIME(""), TTY(""), TIME(""), CMD(""), BASECMD("") {};
-    };
 
     class EZProcessList {
     public:
@@ -95,7 +75,7 @@ namespace EZProc {
                         } else {
                             basecmd = cmd;
                         }
-                        EZProcess p(uid, pid, ppid, c, stime, tty, ptime, cmd, basecmd);
+                        EZTools::EZProcess p(uid, pid, ppid, c, stime, tty, ptime, cmd, basecmd);
                         _processes.push_back(p);
                     }
                 }
@@ -139,15 +119,15 @@ namespace EZProc {
                         } else {
                             basecmd = cmd;
                         }
-                        EZProcess p(uid, pid, ppid, c, stime, tty, ptime, cmd, basecmd);
+                        EZTools::EZProcess p(uid, pid, ppid, c, stime, tty, ptime, cmd, basecmd);
                         _processes.push_back(p);
                     }
                 }
             }
         }
-        std::vector<EZProcess> procs() { return _processes; }
-        std::vector<EZProcess> uid(EZTools::EZString uid) {
-            std::vector<EZProcess> p;
+        std::vector<EZTools::EZProcess> procs() { return _processes; }
+        std::vector<EZTools::EZProcess> uid(EZTools::EZString uid) {
+            std::vector<EZTools::EZProcess> p;
             for (auto & proc : _processes) {
                 if (proc.UID == uid) {
                     p.push_back(proc);
@@ -155,8 +135,8 @@ namespace EZProc {
             }
             return p;
         }
-        EZProcess pid(int pid) {
-            EZProcess p;
+        EZTools::EZProcess pid(int pid) {
+            EZTools::EZProcess p;
             for (auto & proc : _processes) {
                 if (proc.PID == pid) {
                     return proc;
@@ -164,8 +144,8 @@ namespace EZProc {
             }
             return p;
         }
-        std::vector<EZProcess> ppid(int ppid) {
-            std::vector<EZProcess> p;
+        std::vector<EZTools::EZProcess> ppid(int ppid) {
+            std::vector<EZTools::EZProcess> p;
             for (auto & proc : _processes) {
                 if (proc.PPID == ppid) {
                     p.push_back(proc);
@@ -173,8 +153,8 @@ namespace EZProc {
             }
             return p;
         }
-        std::vector<EZProcess> baseCmd(EZTools::EZString baseCmd) {
-            std::vector<EZProcess> p;
+        std::vector<EZTools::EZProcess> baseCmd(EZTools::EZString baseCmd) {
+            std::vector<EZTools::EZProcess> p;
             for (auto & proc : _processes) {
                 if (proc.BASECMD == baseCmd) {
                     p.push_back(proc);
@@ -182,8 +162,8 @@ namespace EZProc {
             }
             return p;
         }
-        std::vector<EZProcess> baseCmdRegexMatch(EZTools::EZString baseCmd) {
-            std::vector<EZProcess> p;
+        std::vector<EZTools::EZProcess> baseCmdRegexMatch(EZTools::EZString baseCmd) {
+            std::vector<EZTools::EZProcess> p;
             for (auto & proc : _processes) {
                 if (proc.BASECMD.regexMatch(baseCmd)) {
                     p.push_back(proc);
@@ -193,7 +173,7 @@ namespace EZProc {
         }
 
     private:
-        std::vector<EZProcess> _processes;
+        std::vector<EZTools::EZProcess> _processes;
     };
 
     //TODO: Add the Process List code
@@ -484,6 +464,81 @@ namespace EZProc {
         }
         return loadA;
     }
+
+//    inline EZTools::TEST_RETURN TEST() {
+//        EZTools::TEST_RETURN res("EZProc", false);
+//        EZProcessList pl;
+//        auto p = pl.procs();
+//        if (p.empty()) {
+//            res.functionTest("EZProcessList.procs()");
+//            res.message("Empty");
+//            return res;
+//        }
+//        res.output << "EZProcessList.procs()" << std::endl;
+//        for (auto& pp: p) {
+//            res.output << "\t" << pp.BASECMD << std::endl;
+//        }
+//        auto u = pl.uid("dbus");
+//        if (u.empty()) {
+//            res.functionTest("EZProcessList.uid(\"dbus\")");
+//            res.message("Empty");
+//            return res;
+//        }
+//        res.output << "EZProcessList.uid(\"dbus\")" << std::endl;
+//        for (auto& pp: u) {
+//            res.output << "\t" << pp.UID << " " << pp.BASECMD << std::endl;
+//        }
+//        auto z = pl.baseCmd("dbus-broker");
+//        if (z.empty()) {
+//            res.functionTest("EZProcessList.baseCmd(\"dbus-broker\")");
+//            res.message("Empty");
+//            return res;
+//        }
+//        res.output << "EZProcessList.baseCmd(\"dbus-broker\")" << std::endl;
+//        for (auto& zz : z) {
+//            res.output << "\t" << zz.PID << " " << zz.BASECMD << std::endl;
+//        }
+//        auto q = pl.baseCmdRegexMatch("broker");
+//        if (q.empty()) {
+//            res.functionTest("EZProcessList.baseCmdRegexMatch(\"broker\")");
+//            res.message("Empty");
+//            return res;
+//        }
+//        res.output << "EZProcessList.baseCmdRegexMatch(\"broker\")" << std::endl;
+//        for (auto& zz : q) {
+//            res.output << "\t" << zz.PID << " " << zz.BASECMD << std::endl;
+//        }
+//        MemInfo mi;
+//        res.output << "MemInfo.total().asGigs(): " << mi.total().asGigs() << std::endl;
+//        res.output << "MemInfo.total().asMegs(): " << mi.total().asMegs() << std::endl;
+//        res.output << "MemInfo.free().asGigs(): " << mi.free().asGigs() << std::endl;
+//        res.output << "MemInfo.free().asMegs(): " << mi.free().asMegs() << std::endl;
+//        res.output << "MemInfo.available().asGigs(): " << mi.available().asGigs() << std::endl;
+//        res.output << "MemInfo.available().asMegs(): " << mi.available().asMegs() << std::endl;
+//        res.output << "MemInfo.swapTotal().asGigs(): " << mi.swapTotal().asGigs() << std::endl;
+//        res.output << "MemInfo.swapTotal().asMegs(): " << mi.swapTotal().asMegs() << std::endl;
+//        res.output << "MemInfo.swapFree().asGigs(): " << mi.swapFree().asGigs() << std::endl;
+//        res.output << "MemInfo.swapFree().asMegs(): " << mi.swapFree().asMegs() << std::endl;
+//        CPUInfo cpu;
+//        auto cp = cpu.cpu();
+//        res.output << "CPUInfo" << std::endl;
+//        for (auto& c: cp) {
+//            res.output << "\tProcessors: " << c.processor << std::endl;
+//            res.output << "\tCores     : " << c.cpu_cores << std::endl;
+//            res.output << "\tSpeed     : " << c.cpu_mhz << std::endl;
+//            res.output << "\tHyperT    : " << std::boolalpha << c.hyperthreading << std::endl;
+//        }
+//        auto sl = loadavg();
+//        res.output << "loadavg().oneMin     : " << sl.oneMin << std::endl;
+//        res.output << "loadavg().fiveMin    : " << sl.fiveMin << std::endl;
+//        res.output << "loadavg().fifteenMin : " << sl.fifteenMin << std::endl;
+//        auto rl = RealLoad();
+//        res.output << "RealLoad().oneMin    : " << rl.oneMin << std::endl;
+//        res.output << "RealLoad().fiveMin   : " << rl.fiveMin << std::endl;
+//        res.output << "RealLoad().fifteenMin: " << rl.fifteenMin << std::endl;
+//        res.wasSuccessful(true);
+//        return res;
+//    }
 }
 
 #endif //EZT_EZPROC_H

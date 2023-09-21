@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,24 +29,16 @@ either expressed or implied, of the MRUtils project.
 
 #ifndef EZT_EZJSONDATABASETYPES_H
 #define EZT_EZJSONDATABASETYPES_H
+
+#pragma once
+
 #include <ostream>
 #include <istream>
 #include "EZTools.h"
 #include "EZDateTime.h"
-#include "json.h"
+#include "nlohmann/json.hpp"
 
 namespace EZJSONData {
-
-    inline nlohmann::json contextObject() {
-        nlohmann::json root = nlohmann::json::object();
-        root["context"] = nlohmann::json::object();
-        root["context"]["dataType"] = "EZTools::EZJSONData";
-        root["context"]["version"] = VERSION;
-        root["context"]["refrence"] = "https://github.com/hippymulehead/EZTools";
-        EZDateTime::CurrentDateTime dt;
-        root["timestamp"] = dt.ymdto();
-        return root;
-    }
 
     enum Numeric_t {
         INT,
@@ -348,6 +340,7 @@ namespace EZJSONData {
         }
         Bool operator=(bool const &obj) {
             _data = obj;
+            _root["value"] = obj;
             return *this;
         }
         bool value() {
@@ -383,6 +376,7 @@ namespace EZJSONData {
         nlohmann::json _root;
     };
 
+    //FIXME: Not complete
     template <typename T>
     class Array: public std::vector<T> {
     public:
@@ -485,6 +479,49 @@ namespace EZJSONData {
             }
         }
     };
+
+    struct ContextObject_t {
+        String type = "EZTools::EZJSONData::ContextObject";
+        String appName;
+        String reference = "https://github.com/hippymulehead/EZTools";
+        String timestamp;
+        String ver;
+        ContextObject_t(String AppName, String Ver = "0.1.0") {
+            appName = AppName;
+            EZDateTime::DateTime dt;
+            timestamp = dt.ymdto();
+            ver = Ver;
+        }
+        nlohmann::json json() {
+            nlohmann::json root;
+            root["contextObject"]["appName"] = appName.json();
+            root["contextObject"]["type"] = type;
+            root["contextObject"]["reference"] = reference.json();
+            root["contextObject"]["timestamp"] = timestamp.json();
+            root["contextObject"]["version"] = ver.json();
+            return root;
+        }
+    };
+
+    inline nlohmann::json contextObject(ContextObject_t context) {
+        nlohmann::json root;
+        root["context"]["type"] = context.type;
+        root["context"]["version"] = context.ver.json();
+        auto sp = context.ver.split(".");
+        root["context"]["version"]["unixVersion"]["major"] = sp.at(0).asInt();
+        root["context"]["version"]["unixVersion"]["minor"] = sp.at(1).asInt();
+        root["context"]["version"]["unixVersion"]["patch"] = sp.at(2).asInt();
+        root["context"]["refrence"] = context.reference.json();
+        root["context"]["appName"] = context.appName.json();
+        root["context"]["timestamp"] = context.timestamp.json();
+        return root;
+    }
+
+    inline nlohmann::json JSONObject(EZTools::EZString appName, EZTools::EZString version = "0.1.0") {
+        auto root = contextObject(ContextObject_t(appName,version));
+        return root;
+    }
+
 
 }
 

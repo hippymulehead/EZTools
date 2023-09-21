@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,18 +30,17 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZDNS_H
 #define EZT_EZDNS_H
 
-#include <cstring> //memset
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#pragma once
+
+#include <cstring>
 #include "EZFiles.h"
 #include "EZHTTP.h"
-#include "json.h"
+#include "nlohmann/json.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
-#include <arpa/nameser.h>
-#include <resolv.h>
+#include "EZLinux.h"
+#include "EZDNSBackend.h"
 
 namespace EZDNS {
 
@@ -83,21 +82,22 @@ namespace EZDNS {
         return ipAddress.regexMatch(EZTools::IPv4Regex);
     }
 
+    //FIXME::
     inline EZTools::EZReturn<ip_t> whatIsMyExternalIP() {
         EZTools::EZReturn<ip_t> ezReturn;
-        ezReturn.metaData.location = "EZDNS::whatIsMyExternalIP";
-        EZHTTP::URI ipify("https://api.ipify.org?format=json");
-        EZHTTP::HTTP http;
-        auto response = http.get(ipify);
+        ezReturn.location("EZDNS::whatIsMyExternalIP");
+        EZHTTP::URI ipify("https://api.ipify.org");
+        EZHTTP::HTTPClient http(ipify);
+        auto response = http.get("/?format=json");
         if (!response.wasSuccessful()) {
             ezReturn.message(response.message());
             return ezReturn;
         }
-        if (response.data().empty()) {
+        if (response.data.empty()) {
             ezReturn.message("No value returned");
             return ezReturn;
         }
-        nlohmann::json root = nlohmann::json::parse(response.data());
+        nlohmann::json root = nlohmann::json::parse(response.data);
         ezReturn.data.A.push_back(root["ip"].get<EZTools::EZString>());
         ezReturn.wasSuccessful(true);
         return ezReturn;
@@ -106,7 +106,7 @@ namespace EZDNS {
     inline EZTools::EZReturn<resolver_t> getSystemResolvers() {
         EZTools::EZReturn<resolver_t> res;
         EZFiles::URI resolvConf("/etc/resolv.conf");
-        auto r = EZFiles::copyFileToVectorOfEZString(resolvConf);
+        auto r = EZFiles::copyFileToVectorOfEZString(&resolvConf);
         if (!r.wasSuccessful()) {
             res.message(r.message());
             return res;
@@ -129,64 +129,29 @@ namespace EZDNS {
 
     inline EZTools::EZReturn<ip_t> getAddrByHost(const EZTools::EZString &hostname) {
         EZTools::EZReturn<ip_t> ezReturn;
-        ezReturn.metaData.location = "EZDNS::getAddrByHost";
-        struct addrinfo hints{}, *res, *p;
-        int status, ai_family;
-        char ip_address[INET6_ADDRSTRLEN];
-        ai_family = AF_UNSPEC;
-        memset(&hints, 0, sizeof hints);
-        hints.ai_family = ai_family;
-        hints.ai_socktype = SOCK_STREAM;
-        if ((status = getaddrinfo(hostname.c_str(), nullptr, &hints, &res)) != 0) {
-            std::stringstream ss;
-            ss << "getaddrinfo: "<< gai_strerror(status);
-            ezReturn.message(ss.str());
+        ezReturn.location("EZDNS::getAddrByHost");
+        auto ret = EZDNSBackend::DigA(hostname);
+        if (!ret.wasSuccessful()) {
+            ezReturn.wasSuccessful(false);
+            ezReturn.message(ret.message());
             return ezReturn;
         }
-        for(p = res;p != nullptr; p = p->ai_next) {
-            void *addr;
-            bool v4 = true;
-            if (p->ai_family == AF_INET) {
-                auto *ipv4 = (struct sockaddr_in *)p->ai_addr;
-                addr = &(ipv4->sin_addr);
-            } else {
-                auto *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
-                addr = &(ipv6->sin6_addr);
-                v4 = false;
-            }
-            inet_ntop(p->ai_family, addr, ip_address, sizeof ip_address);
-            EZTools::EZString ip = ip_address;
-            ip.removeNonPrintable();
-            ip.removeOpeningSpaces();
-            ezReturn.data.A.push_back(ip);
+        for (auto& r : ret.data) {
+            ezReturn.data.A.push_back(r.name);
         }
-        freeaddrinfo(res);
         ezReturn.wasSuccessful(true);
         return ezReturn;
     }
 
     inline EZTools::EZReturn<ptr_t> getPTRByAddr(EZTools::EZString ipAddress) {
         EZTools::EZReturn<ptr_t> ezReturn;
-        ezReturn.metaData.location = "EZDNS::getPTRByAddr";
-        struct sockaddr_in sa{};
-        char node[NI_MAXHOST];
-        memset(&sa, 0, sizeof sa);
-        sa.sin_family = AF_INET;
-        inet_pton(AF_INET, ipAddress.c_str(), &sa.sin_addr);
-        int res = getnameinfo((struct sockaddr*)&sa, sizeof(sa), node, sizeof(node),
-                nullptr, 0, NI_NAMEREQD);
-        if (res) {
-            std::stringstream ss;
-            ss << res << " " << gai_strerror(res);
-            ezReturn.message(ss.str());
-            return ezReturn;
-        } else {
-            ezReturn.data = node;
-        }
-        if (ezReturn.data.empty()) {
-            ezReturn.message("Can't get ptr");
+        ezReturn.location("EZDNS::getPTRByAddr");
+        auto res = EZDNSBackend::DigPTR(ipAddress);
+        if (!res.wasSuccessful()) {
+            ezReturn.message(res.message());
             return ezReturn;
         }
+        ezReturn.data = res.data.at(0).name;
         ezReturn.wasSuccessful(true);
         return ezReturn;
     }
@@ -194,78 +159,32 @@ namespace EZDNS {
     inline EZTools::EZReturn<mx_t> getMXByHost(EZTools::EZString hostname) {
         EZTools::EZString hn = hostname;
         EZTools::EZReturn<mx_t> ezReturn;
-        ezReturn.metaData.location = "EZDNS::getMXByHost";
-        auto tmp = hostname.split(".");
-        if (tmp.size() > 2) {
-            std::stringstream ss;
-            ss << tmp.at(tmp.size() - 2) << "." << tmp.at(tmp.size() - 1);
-            hn = ss.str();
-        }
-        u_char nsbuf[4096];
-        char dispbuf[4096];
-        ns_msg msg;
-        ns_rr rr;
-        int i, l;
-        l = res_query(hn.c_str(), ns_c_any, ns_t_mx, nsbuf, sizeof(nsbuf));
-        if (l < 0) {
-            ezReturn.message("No value returned");
-            return ezReturn;
-        } else {
-            ns_initparse(nsbuf, l, &msg);
-            l = ns_msg_count(msg, ns_s_an);
-            for (i = 0; i < l; i++) {
-                ns_parserr(&msg, ns_s_an, i, &rr);
-                ns_sprintrr(&msg, &rr, nullptr, nullptr, dispbuf, sizeof(dispbuf));
-                mx_t_rec t;
-                EZTools::EZString s = dispbuf;
-                auto sp1 = s.split("IN MX");
-                sp1.at(1).removeNonPrintable();
-                sp1.at(1).regexReplace(".$", "");
-                auto sp2 = sp1.at(1).split(" ");
-                t.weight = sp2.at(0).asInt();
-                t.name = sp2.at(1);
-                ezReturn.data.push_back(t);
-            }
-        }
-        if (ezReturn.data.empty()) {
-            ezReturn.message("No value returned");
+        ezReturn.location("EZDNS::getMXByHost");
+        auto res = EZDNSBackend::DigMX(hostname);
+        if (!res.wasSuccessful()) {
+            ezReturn.message(res.message());
             return ezReturn;
         }
-        std::sort(ezReturn.data.begin(), ezReturn.data.end());
+        for (auto& m : res.data) {
+            mx_t_rec t;
+            t.weight = m.weight.asInt();
+            t.name = m.name;
+            ezReturn.data.push_back(t);
+        }
         ezReturn.wasSuccessful(true);
         return ezReturn;
     }
 
     inline EZTools::EZReturn<ns_t> getNSByHost(EZTools::EZString hostname) {
         EZTools::EZReturn<ns_t> ezReturn;
-        ezReturn.metaData.location = "EZDNS::getNSByHost";
-        u_char nsbuf[4096];
-        char dispbuf[4096];
-        ns_msg msg;
-        ns_rr rr;
-        int i, l;
-        l = res_query(hostname.c_str(), ns_c_any, ns_t_ns, nsbuf, sizeof(nsbuf));
-        if (l < 0) {
-            ezReturn.message("No value returned");
+        ezReturn.location("EZDNS::getNSByHost");
+        auto res = EZDNSBackend::DigNS(hostname);
+        if (!res.wasSuccessful()) {
+            ezReturn.message(res.message());
             return ezReturn;
-        } else {
-            ns_initparse(nsbuf, l, &msg);
-            l = ns_msg_count(msg, ns_s_an);
-            for (i = 0; i < l; i++) {
-                ns_parserr(&msg, ns_s_an, i, &rr);
-                ns_sprintrr(&msg, &rr, nullptr, nullptr, dispbuf, sizeof(dispbuf));
-                EZTools::EZString s = dispbuf;
-                auto sp1 = s.split("IN NS");
-                sp1.at(1).removeOpeningSpaces();
-                sp1.at(1).removeNonPrintable();
-                sp1.at(1).regexReplace(".$", "");
-                ezReturn.data.push_back(sp1.at(1));
-            }
         }
-        std::sort(ezReturn.data.begin(), ezReturn.data.end());
-        if (ezReturn.data.empty()) {
-            ezReturn.message("No value returned");
-            return ezReturn;
+        for (auto& a : res.data) {
+            ezReturn.data.push_back(a.name);
         }
         ezReturn.wasSuccessful(true);
         return ezReturn;
@@ -273,7 +192,7 @@ namespace EZDNS {
 
     inline EZTools::EZReturn<EZDNSHostEnt> getHostEnt(EZTools::EZString whatToLookUp) {
         EZTools::EZReturn<EZDNSHostEnt> hostEnt;
-        hostEnt.metaData.location = "EZDNS::getHostEnt";
+        hostEnt.location("EZDNS::getHostEnt");
         auto re = getSystemResolvers();
         if (!re.wasSuccessful()) {
             hostEnt.data.problems.emplace_back("Your system does not have a proper resolv.conf");
@@ -332,73 +251,75 @@ namespace EZDNS {
         return hostEnt;
     }
 
-//    inline EZTools::TEST_RETURN TEST() {
-//        EZTools::TEST_RETURN res("EZDNS", false);
-//        auto ip = whatIsMyExternalIP();
-//        if (!ip.wasSuccessful()) {
-//            res.functionTest("whatIsMyExternalIP()");
-//            res.message(ip.message());
-//            return res;
-//        }
-//        res.output << "whatIsMyExternalIP() - " << ip.data.A.at(0) << std::endl;
-//
-//        auto ptr = getPTRByAddr(ip.data.A.at(0));
-//        if (!ptr.wasSuccessful()) {
-//            res.functionTest("getPTRByAddr(ip.data.A.at(0)");
-//            res.message(ptr.message());
-//            return res;
-//        }
-//        res.output << "getPTRByAddr(ip.data.A.at(0) - " << ptr.data << std::endl;
-//
-//        auto mx = EZDNS::getMXByHost("google.com");
-//        if (!mx.wasSuccessful()) {
-//            res.functionTest("getMXByHost(\"google.com\")");
-//            res.message(mx.message());
-//            return res;
-//        }
-//        res.output << "getMXByHost(\"google.com\")" << std::endl;
-//        for (auto& m : mx.data) {
-//            res.output << "\t" << m.weight << " " << m.name << std::endl;
-//        }
-//
-//        auto ns = getNSByHost("google.com");
-//        if (!ns.wasSuccessful()) {
-//            res.functionTest("getNSByHost(\"google.com\")");
-//            res.message(ns.message());
-//            return res;
-//        }
-//        res.output << "getNSByHost(\"google.com\")" << std::endl;
-//        for (auto& n : ns.data) {
-//            res.output << "\t" << n << std::endl;
-//        }
-//
-//        auto ent = getHostEnt("google.com");
-//        if (!ent.wasSuccessful()) {
-//            res.functionTest("getHostEnt(\"google.com\")");
-//            res.message(ent.message());
-//            return res;
-//        }
-//        res.output << "getHostEnt(\"google.com\")" << std::endl;
-//        res.output << "\tHostname: " << ent.data.hostname << std::endl;
-//        for (auto& ipp: ent.data.ips.A) {
-//            res.output << "\tIP: " << ipp << std::endl;
-//        }
-//        for (auto& ipp: ent.data.localResolver) {
-//            res.output << "\tResolver: " << ipp << std::endl;
-//        }
-//        for (auto& ipp: ent.data.ns) {
-//            res.output << "\tNS: " << ipp << std::endl;
-//        }
-//        res.output << "\tPTR: " << ent.data.ptr << std::endl;
-//        for (auto& ipp: ent.data.mx) {
-//            res.output << "\tMX: " << ipp.weight << " " << ipp.name << std::endl;
-//        }
-//        for (auto& p : ent.data.problems) {
-//            res.output << p << std::endl;
-//        }
-//        res.wasSuccessful(true);
-//        return res;
-//    }
+    inline EZTools::TEST_RETURN TEST() {
+        EZTools::TEST_RETURN res("EZDNS");
+        std::stringstream ss;
+        auto ip = whatIsMyExternalIP();
+        if (!ip.wasSuccessful()) {
+            res.functionTest("whatIsMyExternalIP()");
+            res.message(ip.message());
+            return res;
+        }
+        ss << "whatIsMyExternalIP() - " << ip.data.A.at(0) << std::endl;
+
+        auto ptr = getPTRByAddr(ip.data.A.at(0));
+        if (!ptr.wasSuccessful()) {
+            res.functionTest("getPTRByAddr(ip.data.A.at(0)");
+            res.message(ptr.message());
+            return res;
+        }
+        ss << "getPTRByAddr(ip.data.A.at(0) - " << ptr.data << std::endl;
+
+        auto mx = EZDNS::getMXByHost("google.com");
+        if (!mx.wasSuccessful()) {
+            res.functionTest("getMXByHost(\"google.com\")");
+            res.message(mx.message());
+            return res;
+        }
+        ss << "getMXByHost(\"google.com\")" << std::endl;
+        for (auto& m : mx.data) {
+            ss << "\t" << m.weight << " " << m.name << std::endl;
+        }
+
+        auto ns = getNSByHost("google.com");
+        if (!ns.wasSuccessful()) {
+            res.functionTest("getNSByHost(\"google.com\")");
+            res.message(ns.message());
+            return res;
+        }
+        ss << "getNSByHost(\"google.com\")" << std::endl;
+        for (auto& n : ns.data) {
+            ss << "\t" << n << std::endl;
+        }
+
+        auto ent = getHostEnt("google.com");
+        if (!ent.wasSuccessful()) {
+            res.functionTest("getHostEnt(\"google.com\")");
+            res.message(ent.message());
+            return res;
+        }
+        ss << "getHostEnt(\"google.com\")" << std::endl;
+        ss << "\tHostname: " << ent.data.hostname << std::endl;
+        for (auto& ipp: ent.data.ips.A) {
+            ss << "\tIP: " << ipp << std::endl;
+        }
+        for (auto& ipp: ent.data.localResolver) {
+            ss << "\tResolver: " << ipp << std::endl;
+        }
+        for (auto& ipp: ent.data.ns) {
+            ss << "\tNS: " << ipp << std::endl;
+        }
+        ss << "\tPTR: " << ent.data.ptr << std::endl;
+        for (auto& ipp: ent.data.mx) {
+            ss << "\tMX: " << ipp.weight << " " << ipp.name << std::endl;
+        }
+        for (auto& p : ent.data.problems) {
+            ss << p << std::endl;
+        }
+        res.output(ss.str());
+        res.wasSuccessful(true);
+        return res;
+    }
 
 }
 

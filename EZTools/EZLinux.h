@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,20 +30,31 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZLINUX_H
 #define EZT_EZLINUX_H
 
+#pragma once
+
 #include <chrono>
 #include <thread>
 #include <map>
 #include <zconf.h>
+#include <pwd.h>
+#include <grp.h>
 #include <iomanip>
 #include <sys/statvfs.h>
-#include "EZTools.h"
-#include "subprocess.h"
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <fstream>
-#include "json.h"
-#include<stdlib.h>
-#include<unistd.h>
-#include<stdio.h>
-#include<fcntl.h>
+#include <cstdlib>
+#include <unistd.h>
+#include <cstdio>
+#include <fcntl.h>
+#include <dirent.h>
+#include <cstring>
+#include <cstdio>
+#include <algorithm>
+#include <iterator>
+#include <sstream>
+#include "EZTools.h"
+#include "nlohmann/json.hpp"
 
 namespace EZLinux {
 
@@ -93,21 +104,42 @@ namespace EZLinux {
         return getuid();
     }
 
-    inline EZTools::EZString whoami() {
-        char username[254];
-        getlogin_r(username, 254);
-        EZTools::EZString un = username;
-        return un;
-    }
+//    inline void execute(char **argv) {
+//        pid_t  pid;
+//        int    childStatus;
+//
+//        if ((pid = fork()) < 0) {     /* fork a childPID process           */
+//            printf("*** ERROR: forking childPID process failed\n");
+//            exit(1);
+//        }
+//        else if (pid == 0) {          /* for the childPID process:         */
+//            if (execvp(*argv, argv) < 0) {     /* execute the command  */
+//                printf("*** ERROR: exec failed\n");
+//                exit(1);
+//            }
+//        } else {
+//            while (wait(&childStatus) != pid);
+//        }
+//    }
+
+//    inline bool execVP(EZTools::EZString command) {
+//        auto sp = command.splitAtFirst(" ");
+//        EZTools::EZString args;
+//        if (sp.size() > 1) {
+//            args = sp.at(1);
+//        }
+//        const char* c = strcpy(new char[args.length() + 1], args.c_str());
+//        return execvp(sp.at(0).c_str(), c);
+//    }
 
     inline EZTools::EZReturn<EZTools::EZString> exec(EZTools::EZString command) {
         EZTools::EZReturn<EZTools::EZString> ezReturn;
-        FILE *fp;
         std::stringstream output;
+        ezReturn.location("EZLinux::exec");
         char path[1035];
         std::stringstream ss;
-        ss << command << " 2>&1";
-        fp = popen(ss.str().c_str(), "r");
+        ss << command << ";echo $?";
+        auto fp = popen(ss.str().c_str(), "r");
         if (fp == nullptr) {
             ezReturn.message("");
             ezReturn.exitCode(42);
@@ -117,39 +149,81 @@ namespace EZLinux {
             output << path;
         }
         pclose(fp);
-        ezReturn.data = output.str();
+        EZTools::EZString ous = output.str();
+
+        while (ous.regexMatch("\n$")) {
+            ous.regexReplace("\n$", "");
+        }
+        auto sp = ous.split("\n");
+        std::vector<EZTools::EZString> g;
+        EZTools::EZString ec = sp.back();
+        sp.erase(sp.end());
+        std::stringstream ops;
+        for (auto& o : sp) {
+            ops << o << std::endl;
+        }
+        ezReturn.exitCode(ec.asInt());
+        if (ezReturn.exitCode() != 0) {
+            std::stringstream sts;
+            sts << ops.str() << "Command: '"+command+"' failed exitcode: "+ec;
+            ezReturn.message(sts.str());
+            return ezReturn;
+        }
+        ezReturn.data = ops.str();
         ezReturn.wasSuccessful(true);
         return ezReturn;
     }
 
-    inline std::vector<EZTools::EZString> userGroups(EZTools::EZString username) {
-        std::stringstream ss;
-        ss << "groups " << username;
-        auto res = exec(ss.str());
-        auto ts = res.data.split(" ");
-        return ts;
-    }
-
-    inline EZTools::EZReturn<EZTools::EZString> subProcess(EZTools::EZString command) {
-        EZTools::EZReturn<EZTools::EZString> ezReturn;
-        std::vector<EZTools::EZString> cv;
-        std::vector<std::string> a;
-        EZTools::EZString c;
-        if (command.regexMatch("^stat --printf=")) {
-            auto ct = command.regexExtract("(stat) (--printf=\"[^\"]*\")");
-            c = ct.at(0);
-            a.emplace_back(ct.at(1));
-        } else {
-            cv = command.split(" ");
-            c = cv.at(0);
-            command.regexReplace(c+" ","");
-            auto aa = command.split(" ");
-            for (auto ap: aa) {
-                a.push_back(ap.str());
-            }
-        }
-        return ezReturn;
-    }
+//    inline EZTools::EZReturn<EZTools::EZString> exec(EZTools::EZString command) {
+//        EZTools::EZReturn<EZTools::EZString> ezReturn;
+//        FILE *fp;
+//        std::stringstream output;
+//        char path[1035];
+//        std::stringstream ss;
+//        ss << command << " 2>&1";
+//        fp = popen(ss.str().c_str(), "r");
+//        if (fp == nullptr) {
+//            ezReturn.message("");
+//            ezReturn.exitCode(42);
+//            return ezReturn;
+//        }
+//        while (fgets(path, sizeof(path)-1, fp) != nullptr) {
+//            output << path;
+//        }
+//        pclose(fp);
+//        ezReturn.data = output.str();
+//        ezReturn.wasSuccessful(true);
+//        return ezReturn;
+//    }
+//
+//    inline std::vector<EZTools::EZString> userGroups(EZTools::EZString username) {
+//        std::stringstream ss;
+//        ss << "groups " << username;
+//        auto res = exec(ss.str());
+//        auto ts = res.data.split(" ");
+//        return ts;
+//    }
+//
+//    inline EZTools::EZReturn<EZTools::EZString> subProcess(EZTools::EZString command) {
+//        EZTools::EZReturn<EZTools::EZString> ezReturn;
+//        std::vector<EZTools::EZString> cv;
+//        std::vector<std::string> a;
+//        EZTools::EZString c;
+//        if (command.regexMatch("^stat --printf=")) {
+//            auto ct = command.regexExtract("(stat) (--printf=\"[^\"]*\")");
+//            c = ct.at(0);
+//            a.emplace_back(ct.at(1));
+//        } else {
+//            cv = command.split(" ");
+//            c = cv.at(0);
+//            command.regexReplace(c+" ","");
+//            auto aa = command.split(" ");
+//            for (auto ap: aa) {
+//                a.push_back(ap.str());
+//            }
+//        }
+//        return ezReturn;
+//    }
 
     struct DiskInfo_t {
         double value;
@@ -369,7 +443,7 @@ namespace EZLinux {
 
     inline EZTools::EZReturn<std::vector<SystemdObject>> systemdList() {
         EZTools::EZReturn<std::vector<SystemdObject>> res;
-        res.metaData.location = "EZLinux::systemdList";
+        res.location("EZLinux::systemdList");
         auto systemsdList = EZLinux::exec("/usr/bin/systemctl --no-pager");
         if (!systemsdList.wasSuccessful()) {
             res.message("Couldn't get systemd list");
@@ -403,7 +477,7 @@ namespace EZLinux {
     inline EZTools::EZReturn<SystemdObject> getSystemdService(EZTools::EZString serviceName) {
         std::vector<SystemdObject> res;
         EZTools::EZReturn<SystemdObject> ret;
-        ret.metaData.location = "EZLinux::getSystemdService";
+        ret.location("EZLinux::getSystemdService");
         auto sdl = systemdList();
         if (sdl.wasSuccessful()) {
             for (auto sdo : sdl.data) {
@@ -431,7 +505,7 @@ namespace EZLinux {
 
     inline EZTools::EZReturn<std::vector<SystemdObject>> getSystemdSub(EZTools::EZString subName) {
         EZTools::EZReturn<std::vector<SystemdObject>> res;
-        res.metaData.location = "EZLinux::getSystemdSub";
+        res.location("EZLinux::getSystemdSub");
         auto sdl = systemdList();
         if (sdl.wasSuccessful()) {
             for (auto sdo : sdl.data) {
@@ -449,105 +523,662 @@ namespace EZLinux {
 
     inline EZTools::EZReturn<nlohmann::json> whois(EZTools::EZString ipaddress) {
         EZTools::EZReturn<nlohmann::json> ret;
-        auto res = EZLinux::subProcess("whois "+ipaddress);
+        auto res = EZLinux::exec("whois "+ipaddress);
         std::cout << res.data << std::endl;
         return ret;
     }
 
-//    inline EZTools::TEST_RETURN TEST() {
-//        EZTools::TEST_RETURN res("EZLinux", false);
-//        auto env = environmentVar("EDITOR");
-//        if (env.empty()) {
-//            res.functionTest("environmentVar(\"EDITOR\")");
-//            res.message("Not found");
-//            return res;
+    enum RPMType_t {
+        YUM,
+        DNF,
+        DEB,
+        UNKNOWN
+    };
+
+    class OSRelease {
+    public:
+        OSRelease() {
+            EZTools::EZString strbuf;
+            std::ifstream MyReadFile("/etc/os-release");
+            while (getline (MyReadFile, strbuf)) {
+                strbuf.regexReplace("\"","");
+                if (strbuf.regexMatch("^NAME=")) {
+                    auto da = strbuf.split("=");
+                    _name = da.at(1);
+                } else if (strbuf.regexMatch("^VERSION_ID=")) {
+                    auto da = strbuf.split("=");
+                    _version_id = da.at(1);
+                } else if (strbuf.regexMatch("^VERSION=")) {
+                    auto da = strbuf.split("=");
+                    _version = da.at(1);
+                } else if (strbuf.regexMatch("^ID=")) {
+                    auto da = strbuf.split("=");
+                    _id = da.at(1);
+                } else if (strbuf.regexMatch("^PRETTY_NAME=")) {
+                    auto da = strbuf.split("=");
+                    _pretty_name = da.at(1);
+                } else if (strbuf.regexMatch("^ID_LIKE=")) {
+                    auto da = strbuf.split("=");
+                    _id_like = da.at(1);
+                }
+            }
+            MyReadFile.close();
+        }
+        ~OSRelease() = default;
+        EZTools::EZString name() { return _name; }
+        EZTools::EZString id() { return _id; }
+        EZTools::EZString versionID() { return _version_id; }
+        EZTools::EZString version() { return _version; }
+        EZTools::EZString prettyName() { return _pretty_name; }
+        EZTools::EZString idLike() {return _id_like; }
+        RPMType_t packageManagerName() {
+            if (_name.lower().regexMatch("fedora")) {
+                return DNF;
+            } else if (_name.lower().regexMatch("centos")) {
+                return _version_id.asInt() < 8 ? YUM : DNF;
+            } else if (_id_like.lower().regexMatch("debian") || _name.lower().regexMatch("debian")) {
+                return DEB;
+            }
+            return UNKNOWN;
+        }
+        EZTools::EZString packageManagerNameAsString() {
+            if (_name.lower().regexMatch("fedora")) {
+                return "DNF";
+            } else if (_name.lower().regexMatch("centos")) {
+                return _version_id.asInt() < 8 ? "YUM" : "DNF";
+            } else if (_id_like.lower().regexMatch("debian") || _name.lower().regexMatch("debian")) {
+                return "DEB";
+            }
+            return "UNKNOWN";
+        }
+    private:
+        EZTools::EZString _name;
+        EZTools::EZString _version;
+        EZTools::EZString _id;
+        EZTools::EZString _id_like;
+        EZTools::EZString _version_id;
+        EZTools::EZString _pretty_name;
+    };
+
+//    inline unsigned checkDNFUpdates() {
+//        auto mc = exec("dnf makecache");
+//        auto cu = exec("dnf check-update");
+//        auto cuList = cu.data.split("\n");
+//        std::vector<EZTools::EZString> yep;
+//        for (auto& c : cuList) {
+//            if (!c.regexMatch("^Last metadata expiration check") && !c.empty()) {
+//                yep.emplace_back(c);
+//            }
 //        }
-//        res.output << "\tenvironmentVar(\"EDITOR\"): " << env << std::endl;
-//        auto p = path();
-//        if (p.empty()) {
-//            res.functionTest("path()");
-//            res.message("Empty");
-//            return res;
-//        }
-//        res.output << "path()" << std::endl;
-//        for (auto& pp : p) {
-//            res.output << "\t" << pp << std::endl;
-//        }
-//        auto h = hostname();
-//        if (h.empty()) {
-//            res.functionTest("hostname()");
-//            res.message("Empty");
-//            return res;
-//        }
-//        res.output << "hostname(): " << h << std::endl;
-//        res.output << "runningAsRoot(): " << std::boolalpha << runningAsRoot() << std::endl;
-//        res.output << "uid(): " << uid() << std::endl;
-//        auto w = whoami();
-//        if (w.empty()) {
-//            res.functionTest("whoami()");
-//            res.message("Empty");
-//            return res;
-//        }
-//        res.output << "whoami(): " << w << std::endl;
-//        auto ls = exec("ls");
-//        if (!ls.wasSuccessful()) {
-//            res.functionTest("exec(\"ls\")");
-//            res.message(ls.message());
-//            return res;
-//        }
-//        res.output << "exec(\"ls\"):" << std::endl;
-//        res.output << ls.data << std::endl;
-//        DiskInfo d("/");
-//        res.output << "DiskInfo:" << std::endl;
-//        res.output << "\tasGigs(): " << d.asGigs() << std::endl;
-//        res.output << "\tasMegs(): " << d.asMegs() << std::endl;
-//        res.output << "\tasKb(): " << d.asKb() << std::endl;
-//        res.output << "\tasBytes(): " << d.asBytes() << std::endl;
-//        res.output << "\td.free().string: " << d.free().string << std::endl;
-//        res.output << "\td.free().value: " << d.free().value << std::endl;
-//        res.output << "\td.total().string: " << d.total().string << std::endl;
-//        res.output << "\td.total().value: " << d.total().value << std::endl;
-//        res.output << "\td.used().string: " << d.used().string << std::endl;
-//        res.output << "\td.used().value: " << d.used().value << std::endl;
-//        res.output << "\td.percentFree().string: " << d.percentFree().string << std::endl;
-//        res.output << "\td.percentFree().value: " << d.percentFree().value << std::endl;
-//        Mounts m;
-//        res.output << "Mounts" << std::endl;
-//        for (auto& mm: m.list()) {
-//            res.output << "\t" << mountsAsString(mm.type) << " " << mm.mount << std::endl;
-//        }
-//        auto sdl = systemdList();
-//        if (!sdl.wasSuccessful()) {
-//            res.functionTest("systemdList()");
-//            res.message(sdl.message());
-//            return res;
-//        }
-//        res.output << "systemdList()";
-//        for (auto& s : sdl.data) {
-//            res.output << "\t'" << s.active() << "' '" << s.unit() << "' '" << s.sub() << "' '"
-//                       << s.description() << "'" << std::endl;
-//        }
-//        auto sss = getSystemdService("sssd");
-//        if (!sss.wasSuccessful()) {
-//            res.functionTest("getSystemdService(\"sssd\")");
-//            res.message(sss.message());
-//            return res;
-//        }
-//        res.output << "\tgetSystemdService(\"sssd\"): " << sss.data.active() << " "
-//                   << sss.data.unit() << std::endl;
-//        res.output << "getSystemdSub(\"active\")" << std::endl;
-//        auto sub = getSystemdSub("active");
-//        if (!sub.wasSuccessful()) {
-//            res.functionTest("getSystemdSub(\"active\")");
-//            res.message(sub.message());
-//            return res;
-//        }
-//        for (auto& a: sub.data) {
-//            res.output << "\t" << a.unit() << std::endl;
-//        }
-//        res.wasSuccessful(true);
-//        return res;
+//        return yep.size();
 //    }
+//
+//    inline unsigned checkYUMUpdates() {
+//        auto mc = exec("yum makecache");
+//        auto cu = exec("yum check-update");
+//        auto cuList = cu.data.split("\n");
+//        std::vector<EZTools::EZString> yep;
+//        for (auto& c : cuList) {
+//            if (!c.regexMatch("^Last metadata expiration check") && !c.empty()) {
+//                yep.emplace_back(c);
+//            }
+//        }
+//        return yep.size();
+//    }
+
+    struct Package_t {
+        EZTools::EZString packageBaseName;
+        EZTools::EZString packageVersion;
+        EZTools::EZString packageArc;
+        EZTools::EZString packageFullName;
+        EZTools::EZString packageRepo;
+    };
+
+    inline void printVector(std::vector<EZTools::EZString> v) {
+        for (auto vv : v) {
+            std::cout << vv << std::endl;
+        }
+    }
+
+    inline std::vector<EZLinux::Package_t> yumCreatePackage_t(std::vector<EZTools::EZString> data,
+                                                              EZTools::EZString regexIgnoreLine = "") {
+        std::vector<EZLinux::Package_t> yep;
+        bool hitTop = false;
+        for (auto& c : data) {
+            if (!c.regexMatch(regexIgnoreLine) && !c.empty() && hitTop) {
+                EZLinux::Package_t p;
+                c.removeExtraSpaces();
+                auto sp1 = c.split(" ");
+                auto sp2 = sp1.at(0).split(".");
+                p.packageBaseName = sp2.at(0);
+                p.packageArc = sp2.at(1);
+                p.packageVersion = sp1.at(1);
+                p.packageRepo = sp1.at(2).regexReplace("[@]", "");
+                std::stringstream s;
+                s << p.packageBaseName << "." << p.packageVersion << "." << p.packageArc;
+                p.packageFullName = s.str();
+                yep.push_back(p);
+            }
+            if (c.empty()) {
+                hitTop = true;
+            }
+        }
+        return yep;
+    }
+
+    inline std::vector<Package_t> createPackage_t(std::vector<EZTools::EZString> data) {
+        std::vector<Package_t> yep;
+        bool hitend = false;
+        for (auto& c : data) {
+            if (!c.regexMatch("^Last metadata expiration check:")
+                && !c.regexMatch("Installed Packages")
+                && !c.empty() && !hitend) {
+                Package_t p;
+                c.removeExtraSpaces();
+                if (c.regexMatch("Available Packages")) {
+                    hitend = true;
+                } else {
+                    auto sp1 = c.split(" ");
+                    auto sp2 = sp1.at(0).split(".");
+                    p.packageBaseName = sp2.at(0);
+                    p.packageArc = sp2.at(1);
+                    p.packageVersion = sp1.at(1);
+                    p.packageRepo = sp1.at(2).regexReplace("[@]", "");
+                    std::stringstream s;
+                    s << p.packageBaseName << "." << p.packageVersion << "." << p.packageArc;
+                    p.packageFullName = s.str();
+                    yep.push_back(p);
+                }
+            }
+        }
+        return yep;
+    }
+
+    enum RPMList_t {
+        INSTALLED,
+        AVAILABLE
+    };
+
+    inline std::pair<unsigned, std::vector<Package_t>> RPMList(RPMType_t type, RPMList_t comm) {
+        std::pair<unsigned, std::vector<Package_t>> res;
+        EZTools::EZString pm = "dnf";
+        if (type == YUM) {
+            pm = "yum";
+        }
+        std::stringstream s;
+        if (comm == INSTALLED) {
+            s << pm << " list installed";
+        } else {
+            s << pm << " list available";
+        }
+        auto mc = exec(s.str());
+        auto cuList = mc.data.split("\n");
+        auto yep = createPackage_t(cuList);
+        res.first = yep.size();
+        res.second = yep;
+        return res;
+    }
+
+    inline std::vector<EZLinux::Package_t> checkRPMUpdates(EZTools::EZString data, EZLinux::RPMType_t type, EZTools::EZString &yumIgnore) {
+        auto cuList = data.split("\n");
+        if (type == EZLinux::DNF) {
+            auto res = EZLinux::createPackage_t(cuList);
+            return res;
+        } else if (type == EZLinux::YUM) {
+            std::vector<EZLinux::Package_t> res;
+            if (yumIgnore.empty()) {
+                res = yumCreatePackage_t(cuList);
+            } else {
+                res = yumCreatePackage_t(cuList, yumIgnore);
+            }
+            return res;
+        }
+        std::vector<EZLinux::Package_t> derp;
+        return derp;
+    }
+
+    inline std::vector<Package_t> checkDEBUpdates() {
+        std::vector<Package_t> res;
+        //FIXME: For obvious reasons that your mom warned you about
+        return res;
+    }
+
+    inline std::vector<EZLinux::Package_t> checkUpdates(EZLinux::RPMType_t type, EZTools::EZString yumIgnore = EZTools::EZString()) {
+        std::vector<EZLinux::Package_t> res;
+        EZTools::EZString pm = "dnf";
+        if (type == EZLinux::YUM) {
+            pm = "yum";
+        }
+        std::stringstream s;
+        std::stringstream p;
+        s << pm << " makecache";
+        p << pm << " check-update";
+        auto mc = EZLinux::exec(s.str());
+        auto cu = EZLinux::exec(p.str());
+        std::vector<EZLinux::Package_t> yep;
+        res = checkRPMUpdates(cu.data, type, yumIgnore);
+        return res;
+    }
+
+    inline EZTools::EZString whoami() {
+        auto res = exec("whoami");
+        return res.data.chomp();
+    }
+
+    inline EZTools::EZString whoamireally() {
+        char username[254];
+        getlogin_r(username, 254);
+        EZTools::EZString un = username;
+        return un;
+    }
+
+    inline EZTools::TEST_RETURN TEST() {
+        EZTools::TEST_RETURN res("EZLinux");
+        std::stringstream ss;
+        auto env = environmentVar("PATH");
+        if (env.empty()) {
+            res.functionTest("environmentVar(\"PATH\")");
+            res.message("Not found");
+            return res;
+        }
+        ss << "\tenvironmentVar(\"PATH\"): " << env << std::endl;
+        auto p = path();
+        if (p.empty()) {
+            res.functionTest("path()");
+            res.message("Empty");
+            return res;
+        }
+        ss << "path()" << std::endl;
+        for (auto& pp : p) {
+            ss << "\t" << pp << std::endl;
+        }
+        auto h = hostname();
+        if (h.empty()) {
+            res.functionTest("hostname()");
+            res.message("Empty");
+            return res;
+        }
+        ss << "hostname(): " << h << std::endl;
+        ss << "runningAsRoot(): " << std::boolalpha << runningAsRoot() << std::endl;
+        ss << "uid(): " << uid() << std::endl;
+        auto w = whoami();
+        if (w.empty()) {
+            res.functionTest("whoami()");
+            res.message("Empty");
+            return res;
+        }
+        ss << "whoami(): " << w << std::endl;
+        auto ls = exec("ls");
+        if (!ls.wasSuccessful()) {
+            res.functionTest("exec(\"ls\")");
+            res.message(ls.message());
+            return res;
+        }
+        ss << "exec(\"ls\"):" << std::endl;
+        ss << ls.data << std::endl;
+        DiskInfo d("/");
+        ss << "DiskInfo:" << std::endl;
+        ss << "\tasGigs(): " << d.asGigs() << std::endl;
+        ss << "\tasMegs(): " << d.asMegs() << std::endl;
+        ss << "\tasKb(): " << d.asKb() << std::endl;
+        ss << "\tasBytes(): " << d.asBytes() << std::endl;
+        ss << "\td.free().string: " << d.free().string << std::endl;
+        ss << "\td.free().valueInSeconds: " << d.free().value << std::endl;
+        ss << "\td.total().string: " << d.total().string << std::endl;
+        ss << "\td.total().valueInSeconds: " << d.total().value << std::endl;
+        ss << "\td.used().string: " << d.used().string << std::endl;
+        ss << "\td.used().valueInSeconds: " << d.used().value << std::endl;
+        ss << "\td.percentFree().string: " << d.percentFree().string << std::endl;
+        ss << "\td.percentFree().valueInSeconds: " << d.percentFree().value << std::endl;
+        Mounts m;
+        ss << "Mounts" << std::endl;
+        for (auto& mm: m.list()) {
+            ss << "\t" << mountsAsString(mm.type) << " " << mm.mount << std::endl;
+        }
+        auto sdl = systemdList();
+        if (!sdl.wasSuccessful()) {
+            res.functionTest("systemdList()");
+            res.message(sdl.message());
+            return res;
+        }
+        ss << "systemdList()";
+        for (auto& s : sdl.data) {
+            ss << "\t'" << s.active() << "' '" << s.unit() << "' '" << s.sub() << "' '"
+               << s.description() << "'" << std::endl;
+        }
+        auto sss = getSystemdService("NetworkManager");
+        if (!sss.wasSuccessful()) {
+            res.functionTest("getSystemdService(\"NetworkManager\")");
+            res.message(sss.message());
+            return res;
+        }
+        ss << "\tgetSystemdService(\"NetworkManager\"): " << sss.data.active() << " "
+           << sss.data.unit() << std::endl;
+        ss << "getSystemdSub(\"active\")" << std::endl;
+        auto sub = getSystemdSub("active");
+        if (!sub.wasSuccessful()) {
+            res.functionTest("getSystemdSub(\"active\")");
+            res.message(sub.message());
+            return res;
+        }
+        for (auto& a: sub.data) {
+            ss << "\t" << a.unit() << std::endl;
+        }
+        res.output(ss.str());
+        res.wasSuccessful(true);
+        return res;
+    }
+
+    inline EZTools::EZReturn<std::vector<EZTools::EZString>> groups() {
+        EZTools::EZReturn<std::vector<EZTools::EZString>> g;
+        auto res = exec("groups");
+        if (!res.wasSuccessful()) {
+            g.message("Can't run groups command");
+            return g;
+        }
+        g.data = res.data.split(" ");
+        g.wasSuccessful(true);
+        return g;
+    }
+
+    inline std::vector<EZTools::EZString> getDirs(EZTools::EZString base, bool includeHidden = false) {
+        std::vector<EZTools::EZString> re;
+        struct dirent *entry = nullptr;
+        DIR *dp = nullptr;
+        dp = opendir(base.c_str());
+        if (dp != nullptr) {
+            while ((entry = readdir(dp))) {
+                int t = int(entry->d_type);
+                EZTools::EZString s = EZTools::EZString(entry->d_name);
+                if (t == 4) {
+                    if (includeHidden) {
+                        re.emplace_back(entry->d_name);
+                    } else if (!s.regexMatch("^\\.")) {
+                        re.emplace_back(entry->d_name);
+                    }
+                }
+            }
+        }
+        closedir(dp);
+        return re;
+    }
+
+    inline EZTools::EZReturn<bool> changeDir(EZTools::EZString dir) {
+        EZTools::EZReturn<bool> re;
+        if (chdir(dir.c_str()) != 0) {
+            std::stringstream ss;
+            ss << "Could not chdir to " << dir;
+            re.message(ss.str());
+            return re;
+        }
+        re.wasSuccessful(true);
+        return re;
+    }
+
+    struct perms_t {
+        bool sticky = false;
+        bool dir = false;
+        bool ownerRead = false;
+        bool ownerWrite = false;
+        bool ownerExec = false;
+        bool groupRead = false;
+        bool groupWrite = false;
+        bool groupExec = false;
+        bool otherRead = false;
+        bool otherWrite = false;
+        bool otherExec = false;
+        EZTools::EZString owner;
+        EZTools::EZString group;
+        EZTools::EZString permsString;
+        EZTools::EZString pathName;
+        bool isThere = false;
+    };
+
+    // This is a limited URI used in execAndPassControl() Don't call direct.  Use EZFiles::URI instead.
+    class URI {
+    public:
+        URI() {
+            _p.clear();
+            _p.append("/");
+        }
+        explicit URI(EZTools::EZString path) {
+            _perms.pathName = path;
+            _perms.isThere = std::filesystem::exists(std::filesystem::status(_perms.pathName.c_str()));
+            std::filesystem::path pp(_perms.pathName.str());
+            _p = pp;
+            auto p = std::filesystem::status(_p.string()).permissions();
+            struct stat FileInfo {};
+            struct passwd *UserDatabaseEntry  = getpwuid(FileInfo.st_uid);
+            struct group  *GroupDatabaseEntry = getgrgid(FileInfo.st_gid);
+            _perms.owner = UserDatabaseEntry->pw_name;
+            _perms.group = GroupDatabaseEntry->gr_name;
+            if ((p & std::filesystem::perms::sticky_bit) != std::filesystem::perms::none) {
+                _perms.sticky = true;
+            }
+            if (this->isDirectory()) {
+                _perms.dir = true;
+            }
+            if ((p & std::filesystem::perms::owner_read) != std::filesystem::perms::none) {
+                _perms.ownerRead = true;
+            }
+            if ((p & std::filesystem::perms::owner_write) != std::filesystem::perms::none) {
+                _perms.ownerWrite = true;
+            }
+            if ((p & std::filesystem::perms::owner_exec) != std::filesystem::perms::none) {
+                _perms.ownerExec = true;
+            }
+            if ((p & std::filesystem::perms::group_read) != std::filesystem::perms::none) {
+                _perms.groupRead = true;
+            }
+            if ((p & std::filesystem::perms::group_write) != std::filesystem::perms::none) {
+                _perms.groupWrite = true;
+            }
+            if ((p & std::filesystem::perms::group_exec) != std::filesystem::perms::none) {
+                _perms.groupExec = true;
+            }
+            if ((p & std::filesystem::perms::others_read) != std::filesystem::perms::none) {
+                _perms.otherRead = true;
+            }
+            if ((p & std::filesystem::perms::others_write) != std::filesystem::perms::none) {
+                _perms.otherWrite = true;
+            }
+            if ((p & std::filesystem::perms::others_exec) != std::filesystem::perms::none) {
+                _perms.otherExec = true;
+            }
+        }
+        ~URI() = default;
+        bool exists() {
+            return std::filesystem::exists(_p);
+        }
+        bool isRegularFile() {
+            return std::filesystem::is_regular_file(_p);
+        }
+        bool isDirectory() {
+            return std::filesystem::is_directory(_p);
+        }
+        bool isBlockDevice() {
+            return std::filesystem::is_block_file(_p);
+        }
+        bool isCharactorFile() {
+            return std::filesystem::is_character_file(_p);
+        }
+        bool isFifo() {
+            return std::filesystem::is_fifo(_p);
+        }
+        bool isOther() {
+            return std::filesystem::is_other(_p);
+        }
+        bool isSocket() {
+            return std::filesystem::is_socket(_p);
+        }
+        bool isSymlink() {
+            return std::filesystem::is_symlink(_p);
+        }
+        EZTools::EZString path() { return _perms.pathName; }
+        bool canRead() {
+            if (isThere()) {
+                auto me = EZLinux::whoami();
+                if (_perms.owner == me && _perms.ownerRead) {
+                    return true;
+                }
+                auto groups = EZLinux::groups();
+                for (auto &g: groups.data) {
+                    if (g == _perms.group && _perms.groupRead) {
+                        return true;
+                    }
+                }
+                if (_perms.otherRead) {
+                    return true;
+                }
+                return false;
+            } else {
+                return false;
+            }
+        }
+        bool canWrite() {
+            if (isThere()) {
+                auto me = EZLinux::whoami();
+                if (_perms.owner == me && _perms.ownerWrite) {
+                    return true;
+                }
+                auto groups = EZLinux::groups();
+                for (auto &g: groups.data) {
+                    if (g == _perms.group && _perms.groupWrite) {
+                        return true;
+                    }
+                }
+                if (_perms.otherWrite) {
+                    return true;
+                }
+                return false;
+            } else {
+                auto bp = _perms.pathName.splitAtLast("/");
+                URI uri(bp.at(0));
+                return uri.canWrite();
+            }
+        }
+        bool canExec() {
+            if (isThere()) {
+                auto me = EZLinux::whoami();
+                if (_perms.owner == me && _perms.ownerExec) {
+                    return true;
+                }
+                auto groups = EZLinux::groups();
+                for (auto &g: groups.data) {
+                    if (g == _perms.group && _perms.groupExec) {
+                        return true;
+                    }
+                }
+                if (_perms.otherExec) {
+                    return true;
+                }
+                return false;
+            } else {
+                return false;
+            }
+        }
+        bool isThere() {
+            return _perms.isThere;
+        }
+    private:
+        std::filesystem::path _p;
+        perms_t _perms;
+    };
+
+    inline char* new_c_str_from_string(const std::string& str) {
+        char* c_str = new char[str.length()+1];
+        std::copy(str.begin(), str.end(), c_str);
+        c_str[str.length()] = '\0';
+        return c_str;
+    }
+
+    inline void delete_c_str(char* c_str) {
+        delete[] c_str;
+    }
+
+    struct PInfo_T {
+        pid_t childPID;
+        int childStatus = 0;
+        int childExitCode = 0;
+    };
+
+    template<typename It>
+    inline PInfo_T exec_vp_backend(std::string file, It begin, It end) {
+        std::vector<char*> argv;
+        argv.push_back(new_c_str_from_string(file));
+        std::transform(begin, end, std::back_inserter(argv), new_c_str_from_string);
+        argv.push_back(nullptr);
+        PInfo_T t{};
+        if(!(t.childPID = fork())) {
+            t.childExitCode = execvp(file.c_str(), &argv[0]);
+        }
+        waitpid(t.childPID, &t.childStatus, 0);
+        std::for_each(argv.begin(), argv.end(), delete_c_str);
+        return t;
+    }
+
+    EZTools::EZReturn<URI> checkFileThereInPath(EZTools::EZString command) {
+        EZTools::EZReturn<URI> uri;
+        auto p = EZLinux::path();
+        for (auto& pn : p) {
+            std::stringstream ss;
+            ss << pn << "/" << command;
+            if (exists(std::filesystem::status(ss.str()))) {
+                URI u(ss.str());
+                uri.data = u;
+                uri.wasSuccessful(true);
+                return uri;
+            }
+        }
+        uri.message("File not found");
+        return uri;
+    }
+
+    inline EZTools::EZReturn<PInfo_T> execAndPassControl(EZTools::EZString command) {
+        EZTools::EZReturn<PInfo_T> res;
+        std::istringstream command_stream(command);
+        std::istream_iterator<std::string> command_iterator(command_stream);
+        std::string file = *(command_iterator++);
+        EZTools::EZString pa;
+        EZTools::EZString tfile = file;
+        if (tfile.regexMatch("^\\/|^\\.")) {
+            URI uri(file);
+            if (!uri.isThere() || !uri.canExec()) {
+                res.message("Can't execute '" + file + "'");
+                return res;
+            }
+            pa = uri.path();
+        } else {
+            auto u = checkFileThereInPath(file);
+            if (u.data.canExec()) {
+                pa = u.data.path();
+            }
+        }
+        if (!pa.empty()) {
+            auto re = exec_vp_backend(file, command_iterator, std::istream_iterator<std::string>());
+            res.data.childStatus = re.childStatus;
+            res.data.childExitCode = re.childExitCode;
+            res.data.childPID = re.childPID;
+            if (re.childExitCode == 0 && re.childStatus != 0) {
+                res.exitCode(re.childExitCode);
+                res.message("Status for '" + command + "' returned a " + EZTools::EZString(re.childStatus));
+                res.wasSuccessful(false);
+            } else if (re.childExitCode == 0) {
+                res.wasSuccessful(true);
+            } else {
+                res.exitCode(re.childExitCode);
+                std::stringstream ss;
+                ss << "Running '" << command << "' Exit code : " << re.childExitCode << "-" << re.childStatus;
+                res.message(ss.str());
+            }
+        } else {
+            res.exitCode(-1);
+            std::stringstream ss;
+            ss << "Command not found: " << file;
+            res.message(ss.str());
+        }
+        return res;
+    }
 
 }
 

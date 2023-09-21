@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,425 +30,399 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZHTTP_H
 #define EZT_EZHTTP_H
 
-#include <cstdio>
-#include <netdb.h>
-#include <ifaddrs.h>
-#include <cstdlib>
-#include <unistd.h>
-#include <cstring>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sstream>
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#pragma once
+
+#include "httplib.h"
 #include "EZTools.h"
 #include "EZDateTime.h"
-#include "cxxurl/cxxurl_all.h"
-#include "json.h"
-using namespace CXXUrl;
+#include "nlohmann/json.hpp"
 
 namespace EZHTTP {
 
-    class HTTP;
+    struct urlParts_t {
+        EZTools::EZString fullURL;
+        EZTools::EZString type;
+        EZTools::EZString domain;
+        EZTools::EZString port;
+        EZTools::EZString call;
+        EZTools::EZString base;
+        std::vector<EZTools::EZString> callVector;
+        bool goodBreakDown = false;
+    };
 
-    EZTools::EZString curlError(CURLcode code) {
-        std::stringstream ss;
-        ss << code << ": ";
-        switch (code) {
-            case CURLE_UNSUPPORTED_PROTOCOL:
-                ss << "Protocol not supported";
-                break;
-            case CURLE_FAILED_INIT:
-                ss << "Very early initialization code failed";
-                break;
-            case CURLE_URL_MALFORMAT:
-                ss << "The URL was not properly formatted";
-                break;
-            case CURLE_COULDNT_RESOLVE_HOST:
-                ss << "Couldn't resolve host";
-                break;
-            case CURLE_COULDNT_CONNECT:
-                ss << "Failed to connect() to host or proxy";
-                break;
-            case CURLE_REMOTE_ACCESS_DENIED:
-                ss << "Denied access to the resource given in the URL";
-                break;
-//            case CURLE_HTTP2:
-//                return "A problem was detected in the HTTP2 framing layer";
-            case CURLE_OUT_OF_MEMORY:
-                ss << "A memory allocation request failed";
-                break;
-            case CURLE_OPERATION_TIMEDOUT:
-                ss << "Operation timeout";
-                break;
-            case CURLE_SSL_CONNECT_ERROR:
-                ss << "A problem occurred somewhere in the SSL/TLS handshake";
-                break;
-            case CURLE_FUNCTION_NOT_FOUND:
-                ss <<  "Function not found. A required zlib function was not found.";
-                break;
-            case CURLE_BAD_FUNCTION_ARGUMENT:
-                ss << "Internal error. A function was called with a bad parameter.";
-                break;
-            case CURLE_INTERFACE_FAILED:
-                ss << "Interface error";
-                break;
-            case CURLE_TOO_MANY_REDIRECTS:
-                ss << "Too many redirects";
-                break;
-            case CURLE_GOT_NOTHING:
-                ss << "Got nothing from the server";
-                break;
-//            case CURLE_HTTP2_STREAM:
-//                return "Stream error in the HTTP/2 framing layer.";
-            default:
-                ss << "Other curl error, see response.code";
-                break;
+    inline urlParts_t breakDownURL(EZTools::EZString url) {
+        urlParts_t t;
+        if (url.regexMatch(R"(^(http:\/\/|https:\/\/)([a-z0-9+\-.]*)(:)([0-9]*)(.*)?)")) {
+            auto u = url.regexExtract(R"(^(http:\/\/|https:\/\/)([a-z0-9+\-.]*)(:)([0-9]*)(.*)?)");
+            t.type = u.at(1);
+            t.domain = u.at(2);
+            t.port = u.at(4);
+            if (u.size() > 4) {
+                t.call = u.at(5);
+            }
+            std::stringstream ss;
+            ss << t.type << t.domain << ":" << t.port;
+            t.base = ss.str();
+            if (u.size() > 4) {
+                EZTools::EZString cvs = t.call;
+                cvs.regexReplace("^/", "");
+                t.callVector = cvs.split("/");
+                t.goodBreakDown = true;
+            }
+            t.fullURL = url;
+            if (t.call.empty()) {
+                t.call = "/";
+            }
+        } else if (url.regexMatch(R"(^(http:\/\/|https:\/\/)([a-z0-9+\-.]*)(.*)?)")) {
+            auto u = url.regexExtract(R"(^(http:\/\/|https:\/\/)([a-z0-9+\-.]*)(.*)?)");
+            t.type = u.at(1);
+            t.domain = u.at(2);
+            if (u.size() > 2) {
+                t.call = u.at(3);
+            }
+            std::stringstream ss;
+            ss << t.type << t.domain;
+            t.base = ss.str();
+            if (u.size() > 2) {
+                EZTools::EZString cvs = t.call;
+                cvs.regexReplace("^/", "");
+                t.callVector = cvs.split("/");
+                t.goodBreakDown = true;
+            }
+            t.fullURL = url;
+            if (t.call.empty()) {
+                t.call = "/";
+            }
         }
-        return ss.str();
+        return t;
     }
 
-    class HTTPHeaders {
+    inline EZTools::EZString httpErrorAsString(httplib::Error error) {
+        switch (error) {
+            case httplib::Error::Success:
+                return "Success";
+            case httplib::Error::Unknown:
+                return "Unknown";
+            case httplib::Error::Connection:
+                return "Connection";
+            case httplib::Error::BindIPAddress:
+                return "BindIPAddress";
+            case httplib::Error::Read:
+                return "Read";
+            case httplib::Error::Write:
+                return "Write";
+            case httplib::Error::ExceedRedirectCount:
+                return "ExceedRedirectCount";
+            case httplib::Error::Canceled:
+                return "Canceled";
+            case httplib::Error::SSLConnection:
+                return "SSLConnection";
+            case httplib::Error::SSLLoadingCerts:
+                return "SSLLoadingCerts";
+            case httplib::Error::SSLServerVerification:
+                return "SSLServerVerification";
+            case httplib::Error::UnsupportedMultipartBoundaryChars:
+                return "UnsupportedMultipartBoundaryChars";
+            case httplib::Error::Compression:
+                return "Compression";
+        }
+    }
+
+    class Headers {
     public:
-        HTTPHeaders() = default;
-        HTTPHeaders(EZTools::EZString headerString) {
-            auto hsplit = headerString.split("\n");
-            for (auto& line : hsplit) {
-                std::vector<EZTools::EZString> lb = line.split(":");
-                if (lb.size() > 1) {
-                    lb.at(1).regexReplace("^ ", "");
-                    _headers.insert(std::pair<EZTools::EZString, EZTools::EZString>(lb.at(0), lb.at(1)));
-                } else {
-                    _headers.insert(std::pair<EZTools::EZString, EZTools::EZString>(lb.at(0), ""));
-                }
-            }
-        }
-        ~HTTPHeaders() = default;
-        void init(EZTools::EZString headerString) {
-            _headers.clear();
-            auto hsplit = headerString.split("\n");
-            for (auto& line : hsplit) {
-                std::vector<EZTools::EZString> lb = line.split(":");
-                if (lb.size() > 1) {
-                    lb.at(1).regexReplace("^ ", "");
-                    _headers.insert(std::pair<EZTools::EZString, EZTools::EZString>(lb.at(0), lb.at(1)));
-                } else {
-                    _headers.insert(std::pair<EZTools::EZString, EZTools::EZString>(lb.at(0), ""));
-                }
-            }
-        }
+        Headers() = default;
+        ~Headers() = default;
         void addPair(EZTools::EZString key, EZTools::EZString value) {
-            _headers.insert(std::pair<EZTools::EZString, EZTools::EZString>(key, value));
+            _headers.insert({key,value});
         }
-        std::map<EZTools::EZString, EZTools::EZString> as_map() { return _headers; }
-        EZTools::EZString as_string() {
-            std::stringstream ss;
-            for (auto& m : _headers) {
-                if (m.second.empty()) {
-                    ss << m.first << std::endl;
-                } else {
-                    ss << m.first << ": " << m.second << std::endl;
-                }
-            }
-            return ss.str();
-        }
-        std::vector<std::string> as_stringList() {
-            std::vector<std::string> reqHeader;
-            auto sp = as_string().split("\n");
-            for (auto& line : sp) {
-                reqHeader.emplace_back(line);
-            }
-            return reqHeader;
-        }
+        httplib::Headers list() { return _headers; }
     private:
-        std::map<EZTools::EZString, EZTools::EZString> _headers;
-    };
-
-    struct HTTPResponseMetaData {
-        bool wasSuccessful = false;
-        long httpResponseCode = 0;
-        long curlCode = 0;
-        EZTools::EZString message;
-        int headerSize = 0;
-        float timeInMillis;
-        EZTools::EZString location;
-    };
-
-    class HTTPResponse {
-    public:
-        HTTPResponse() = default;
-        ~HTTPResponse() = default;
-        void data(std::string data) { _data = data; }
-        EZTools::EZString data() { return _data; }
-        void responseCode(long code) { metaData.curlCode = code; }
-        long responseCode() { return metaData.curlCode; }
-        void httpCode(long code) {metaData.httpResponseCode = code; }
-        long httpCode() { return metaData.httpResponseCode; }
-        void wasSuccessful(bool success) { metaData.wasSuccessful = success; }
-        bool wasSuccessful() { return metaData.wasSuccessful; }
-        void message(std::string text) { metaData.message = text; }
-        EZTools::EZString message() { return metaData.message; }
-        void headerSize(long size) { metaData.headerSize = size; }
-        long headerSize() { return metaData.headerSize; }
-        void headerString(EZTools::EZString headerstring) { _headers.init(headerstring); }
-        void responseTimeInMillis(float t) { metaData.timeInMillis = t; }
-        float responseTimeInMillis() { return metaData.timeInMillis; }
-        HTTPHeaders headers() { return _headers; }
-        nlohmann::json asJSON() {
-            return nlohmann::json::parse(_data);
-        }
-        HTTPResponseMetaData metaData;
-    private:
-        EZTools::EZString _data;
-        HTTPHeaders _headers;
+        httplib::Headers _headers;
     };
 
     class URI {
     public:
-        enum URI_T{URI_HTTP, URI_HTTPS};
         URI() = default;
-        URI(EZTools::EZString URILocation, int timeout = 15, EZTools::EZString username = "",
-            EZTools::EZString password = "", bool hasRealCert = true) {
-            _timeout = timeout;
-            _hasRealCert = hasRealCert;
-            _username = username;
-            _password = password;
-            EZTools::EZString temp = URILocation;
-            _URILocation = URILocation;
-            if (URILocation.regexMatch("^https://")) {
-                _type = URI_HTTPS;
-                _port = 443;
-                temp.regexReplace("^https://", "");
+        explicit URI(EZTools::EZString url, int timeout = 15, bool hasGoodCert = true, bool follow = true) {
+            _urlParts = breakDownURL(url);
+            if (_urlParts.goodBreakDown) {
+                _timeout = timeout;
+                _follow = follow;
+                _hasGoodCert = hasGoodCert;
+                _isGood = true;
             } else {
-                _type = URI_HTTP;
-                _port = 80;
-                temp.regexReplace("^http://", "");
-            }
-            auto urisplit = temp.split("/");
-            if (urisplit.at(0).regexMatch(":")) {
-                auto basesplit = urisplit.at(0).split(":");
-                _basepath = basesplit.at(0);
-                _port = basesplit.at(1).asInt();
-            } else {
-                _basepath = urisplit.at(0);
+                _isGood = false;
             }
         }
         ~URI() = default;
-        EZTools::EZString path() { return _URILocation; }
-        EZTools::EZString basepath() { return _basepath; }
+        EZTools::EZString path() { return _urlParts.fullURL; }
         bool canConnect() {
-            int portno     = _port;
-            int sockfd;
-            struct sockaddr_in serv_addr;
-            struct hostent *server;
-
-            sockfd = socket(AF_INET, SOCK_STREAM, 0);
-            if (sockfd < 0) {
-                return false;
-            }
-            server = gethostbyname(_basepath.c_str());
-            if (server == nullptr) {
-                return false;
-            }
-            bzero((char *) &serv_addr, sizeof(serv_addr));
-            serv_addr.sin_family = AF_INET;
-            bcopy((char *)server->h_addr,
-                  (char *)&serv_addr.sin_addr.s_addr,
-                  server->h_length);
-
-            serv_addr.sin_port = htons(portno);
-            EZDateTime::Timer et;
-            et.start();
-            if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) {
-                et.stop();
-                _time = et.asMillisenconds();
-                close(sockfd);
-                return false;
+            std::stringstream ss;
+            if (!_urlParts.port.empty()) {
+                ss << _urlParts.type << _urlParts.base << ":" << _urlParts.port;
             } else {
-                et.stop();
-                _time = et.asMillisenconds();
-                close(sockfd);
-                return true;
+                ss << _urlParts.type << _urlParts.base;
             }
+            httplib::Client cli(ss.str());
+            cli.set_read_timeout(_timeout);
+            cli.set_connection_timeout(_timeout);
+            cli.enable_server_certificate_verification(_hasGoodCert);
+            _isGood = true;
+            cli.set_default_headers(_headers);
+            EZDateTime::Timer timer;
+            timer.start();
+            auto bok = cli.Get("/");
+            timer.stop();
+            _time = timer.asMillisenconds();
+            if (bok.error() != httplib::Error::Success) {
+                _message = httpErrorAsString(bok.error()) + " Error";
+                _isGood = false;
+            }
+            return _isGood;
         }
         float connectTime() { return _time; }
-        bool isThere() {
-            std::ostringstream contentOutput;
-            std::ostringstream headers;
-            if (_username.empty()) {
-                Request request = RequestBuilder()
-                        .url(_URILocation)
-                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout)+"L")
-                        .verifySSL(_hasRealCert)
-                        .contentOutput(&contentOutput)
-                        .headerOutput(&headers)
-                        .userAgent(_ua)
-                        .noBody(true)
-                        .build();
-                auto const res = request.get();
-                return res.getCode() == CURLE_OK;
-            } else {
-                Request request = RequestBuilder()
-                        .url(_URILocation)
-                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout)+"L")
-                        .curlOptionString(CURLOPT_USERNAME, _username)
-                        .curlOptionString(CURLOPT_PASSWORD, _password)
-                        .verifySSL(_hasRealCert)
-                        .contentOutput(&contentOutput)
-                        .headerOutput(&headers)
-                        .userAgent(_ua)
-                        .noBody(true)
-                        .build();
-                auto const res = request.get();
-                return res.getCode() == CURLE_OK;
-            }
-        }
         int timeout() { return _timeout; }
-        bool hasRealCert() { return _hasRealCert; }
-        EZTools::EZString username() { return _username; }
-        EZTools::EZString password() { return _password; }
-        void auth(EZTools::EZString username, EZTools::EZString password) {
-            _username = username;
-            _password = password;
-        }
         void timeout(int Timeout) { _timeout = Timeout; }
-        EZTools::EZString userAgent() { return _ua; }
-        void userAgent(EZTools::EZString useragent) { _ua = useragent; }
-        void requestHeaders(HTTPHeaders headers) { _requestHeaders = headers; }
-        HTTPHeaders requestHeaders() { return _requestHeaders; }
-
-    private:
-        EZTools::EZString _ua = "EZHTTPURI by Michael Romans";
-        float _time;
-        int _timeout = 15;
-        bool _hasRealCert;
-        EZTools::EZString _username;
-        EZTools::EZString _password;
-        URI_T _type;
-        int _port;
-        EZTools::EZString _URILocation;
-        EZTools::EZString _basepath;
-        HTTPHeaders _requestHeaders;
-
-        EZTools::EZString pathType(URI_T type) {
-            switch (type) {
-                case URI_HTTP:
-                    return "http";
-                case URI_HTTPS:
-                    return "https";
-                default:
-                    return "Unknown";
-            }
+        bool hasRealCert() { return _hasGoodCert; }
+        void hasRealCert(bool HasRealCert) { _hasGoodCert = HasRealCert; }
+        void basicAuth(EZTools::EZString username, EZTools::EZString password) {
+            _basicAuth.first = username;
+            _basicAuth.second = password;
         }
+        std::pair<EZTools::EZString, EZTools::EZString> basicAuth() { return _basicAuth; }
+        void requestHeaders(httplib::Headers headers) { _headers = headers; }
+        [[nodiscard]] bool wasSuccessful() const { return _isGood; }
+        EZTools::EZString message() { return _message; }
+        bool follow() {return _follow; }
+        EZTools::EZString type() { return _urlParts.type; }
+        EZTools::EZString base() { return _urlParts.base; }
+        EZTools::EZString port() {return _urlParts.port; }
+        httplib::Headers requestHeaders() { return _headers; }
+        urlParts_t urlParts() { return _urlParts; }
+    private:
+        std::pair<EZTools::EZString, EZTools::EZString> _basicAuth;
+        httplib::Headers _headers;
+        int _timeout;
+        bool _isGood = false;
+        bool _follow;
+        bool _hasGoodCert;
+        EZTools::EZString _message;
+        float _time;
+        urlParts_t _urlParts;
     };
 
-    class HTTP {
+    class EZReturnHTTP : public EZTools::EZReturnNoData {
     public:
-        HTTP() = default;
-        HTTP(EZTools::EZString userAgent) { _ua = userAgent; }
-        HTTP(EZTools::EZString userAgent, int timeout, bool follow = true) {
-            _ua = userAgent;
-            _timeout = timeout;
-            _follow = follow;
+        EZReturnHTTP() = default;
+        ~EZReturnHTTP() = default;
+        void location(EZTools::EZString Location) { _location = Location; }
+        EZTools::EZString location() { return _location; }
+        void httpCode(int code) {_httpResponseCode = code; }
+        long httpCode() { return _httpResponseCode; }
+        void headerSize(long size) { _headerSize = size; }
+        long headerSize() { return _headerSize; }
+//        void headerString(EZTools::EZString headerstring) { _headers.init(headerstring); }
+        void responseTimeInMillis(float t) { _timeInMillis = t; }
+        float responseTimeInMillis() { return _timeInMillis; }
+//        HTTPHeaders headers() { return _headers; }
+        nlohmann::json asJSON() {
+            return nlohmann::json::parse(data);
         }
-        ~HTTP() = default;
-        HTTPResponse get(URI uri, bool headerOnly = false) {
-            _uri = uri;
-            _username = uri.username();
-            _password = uri.password();
-            _timeout = uri.timeout();
-            EZDateTime::Timer t;
-            t.start();
-            std::ostringstream contentOutput;
-            std::ostringstream headers;
-            CXXUrl::RequestHeader RH;
-            if (!_uri.requestHeaders().as_map().empty()) {
-                for (auto& rh : _uri.requestHeaders().as_map()) {
-                    std::stringstream ss;
-                    ss << rh.first << ": " << rh.second;
-                    RH.add(ss.str());
-                }
-            }
-            if (_uri.username().empty()) {
-                Request request = RequestBuilder()
-                        .url(_uri.path())
-                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout))
-                        .followLocation(_follow)
-                        .verifySSL(_uri.hasRealCert())
-                        .contentOutput(&contentOutput)
-                        .headerOutput(&headers)
-                        .userAgent(_uri.userAgent())
-                        .noBody(headerOnly)
-                        .requestHeader(&RH)
-                        .build();
-                auto const res = request.get();
-                EZTools::EZString mes;
-                bool ws = true;
-                if (res.getCode() != CURLE_OK) {
-                    mes = curlError(res.getCode());
-                    ws = false;
-                }
-                t.stop();
-                HTTPResponse hres;
-                hres.data(contentOutput.str());
-                hres.headerString(headers.str());
-                hres.httpCode(res.getHTTPCode());
-                hres.responseCode(res.getCode());
-                hres.wasSuccessful(res.getCode() == CURLE_OK);
-                hres.responseTimeInMillis(t.asMillisenconds());
-                hres.message(curlError(res.getCode()));
-                return hres;
-            } else {
-                Request request = RequestBuilder()
-                        .url(_uri.path())
-                        .curlOptionString(CURLOPT_TIMEOUT, EZTools::EZString(_timeout))
-                        .curlOptionString(CURLOPT_USERNAME, _uri.username())
-                        .curlOptionString(CURLOPT_PASSWORD, _uri.password())
-                        .followLocation(_follow)
-                        .verifySSL(_uri.hasRealCert())
-                        .contentOutput(&contentOutput)
-                        .headerOutput(&headers)
-                        .userAgent(_uri.userAgent())
-                        .noBody(headerOnly)
-                        .requestHeader(&RH)
-                        .build();
-                auto const res = request.get();
-                EZTools::EZString mes;
-                bool ws = true;
-                if (res.getCode() != CURLE_OK) {
-                    mes = curlError(res.getCode());
-                    ws = false;
-                }
-                t.stop();
-                HTTPResponse hres;
-                hres.data(contentOutput.str());
-                hres.headerString(headers.str());
-                hres.httpCode(res.getHTTPCode());
-                hres.responseCode(res.getCode());
-                hres.wasSuccessful(res.getCode() == CURLE_OK);
-                hres.responseTimeInMillis(t.asMillisenconds());
-                hres.message(curlError(res.getCode()));
-                return hres;
-            }
-        }
-        void follow(bool Follow) { _follow = Follow; }
-        void hasGoodCert(bool goodCert) { _verifySSL = goodCert; }
-        void requestHeader(HTTPHeaders reqHeader) { _reqHeader = reqHeader; }
-        void setAuth(EZTools::EZString username, EZTools::EZString password) {
-            _username = username;
-            _password = password;
-        }
-        void userAgent(EZTools::EZString ua) { _ua = ua; }
-        EZTools::EZString userAgent() { return _ua; }
+        EZTools::EZString data;
+    private:
+        int _httpResponseCode = 0;
+        int _headerSize = 0;
+        float _timeInMillis = 0;
+        EZTools::EZString _location;
+    };
 
+    class HTTPClient {
+    public:
+        HTTPClient() = default;
+        explicit HTTPClient(URI &uri) {
+            _uri = uri;
+        }
+        ~HTTPClient() = default;
+        void init(URI &uri) {
+            _uri = uri;
+        }
+        bool follow() { return _uri.follow(); }
+        EZReturnHTTP get() {
+            EZReturnHTTP res;
+            if (!_uri.wasSuccessful()) {
+                res.message(_uri.message());
+                return res;
+            } else {
+                res.location("EZHTTP::get");
+                httplib::Client cli(_uri.urlParts().base);
+                if (!_uri.basicAuth().first.empty()) {
+                    cli.set_basic_auth(_uri.basicAuth().first.c_str(),
+                                       _uri.basicAuth().second.c_str());
+                }
+                cli.enable_server_certificate_verification(_uri.hasRealCert());
+                EZDateTime::Timer t;
+                t.start();
+                cli.set_follow_location(_uri.follow());
+                cli.set_default_headers(_uri.requestHeaders());
+                if (auto me = cli.Get(_uri.urlParts().call)) {
+                    t.stop();
+                    res.responseTimeInMillis(t.asMillisenconds());
+                    res.httpCode(me->status);
+                    if (me->status == 200) {
+                        res.wasSuccessful(true);
+                        res.data = me->body;
+                    } else {
+                        res.message("Error Code: " + EZTools::EZString(me->status));
+                    }
+                } else {
+                    std::stringstream ss;
+                    ss << "error code: " << me.error() << std::endl;
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+                    auto result = cli.get_openssl_verify_result();
+                    if (result) {
+                        ss << "\nverify error: " << X509_verify_cert_error_string(result);
+                    }
+#endif
+                    res.message(ss.str());
+                }
+                return res;
+            }
+        }
+        EZReturnHTTP get(EZTools::EZString url) {
+            EZReturnHTTP res;
+            if (!_uri.wasSuccessful()) {
+                res.message(_uri.message());
+                return res;
+            } else {
+                res.location("EZHTTP::get(EZTools::EZString)");
+                httplib::Client cli(_uri.urlParts().base);
+                if (!_uri.basicAuth().first.empty()) {
+                    cli.set_basic_auth(_uri.basicAuth().first.c_str(),
+                                       _uri.basicAuth().second.c_str());
+                }
+                cli.enable_server_certificate_verification(_uri.hasRealCert());
+                EZDateTime::Timer t;
+                t.start();
+                cli.set_follow_location(_uri.follow());
+                cli.set_default_headers(_uri.requestHeaders());
+                if (auto me = cli.Get(url)) {
+                    t.stop();
+                    res.responseTimeInMillis(t.asMillisenconds());
+                    res.httpCode(me->status);
+                    if (me->status == 200) {
+                        res.wasSuccessful(true);
+                        res.data = me->body;
+                    } else {
+                        res.message("Error Code: " + EZTools::EZString(me->status));
+                    }
+                } else {
+                    std::stringstream ss;
+                    ss << "error code: " << me.error() << std::endl;
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+                    auto result = cli.get_openssl_verify_result();
+                    if (result) {
+                        ss << "\nverify error: " << X509_verify_cert_error_string(result);
+                    }
+#endif
+                    res.message(ss.str());
+                }
+                return res;
+            }
+        }
+        EZReturnHTTP head() {
+            EZReturnHTTP res;
+            if (!_uri.wasSuccessful()) {
+                res.message(_uri.message());
+                return res;
+            } else {
+                res.location("EZHTTP::get(EZTools::EZString)");
+                httplib::Client cli(_uri.urlParts().base);
+                if (!_uri.basicAuth().first.empty()) {
+                    cli.set_basic_auth(_uri.basicAuth().first.c_str(),
+                                       _uri.basicAuth().second.c_str());
+                }
+                cli.enable_server_certificate_verification(_uri.hasRealCert());
+                EZDateTime::Timer t;
+                t.start();
+                cli.set_follow_location(_uri.follow());
+                cli.set_default_headers(_uri.requestHeaders());
+                if (auto me = cli.Head(_uri.urlParts().call)) {
+                    t.stop();
+                    res.responseTimeInMillis(t.asMillisenconds());
+                    res.httpCode(me->status);
+                    if (me->status == 200) {
+                        res.wasSuccessful(true);
+                        res.data = me->body;
+                    } else {
+                        res.message("Error Code: " + EZTools::EZString(me->status));
+                    }
+                } else {
+                    std::stringstream ss;
+                    ss << "error code: " << me.error() << std::endl;
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+                    auto result = cli.get_openssl_verify_result();
+                    if (result) {
+                        ss << "\nverify error: " << X509_verify_cert_error_string(result);
+                    }
+#endif
+                    res.message(ss.str());
+                }
+                return res;
+            }
+        }
+        EZReturnHTTP head(EZTools::EZString url) {
+            EZReturnHTTP res;
+            if (!_uri.wasSuccessful()) {
+                res.message(_uri.message());
+                return res;
+            } else {
+                res.location("EZHTTP::get(EZTools::EZString)");
+                httplib::Client cli(_uri.urlParts().base);
+                if (!_uri.basicAuth().first.empty()) {
+                    cli.set_basic_auth(_uri.basicAuth().first.c_str(),
+                                       _uri.basicAuth().second.c_str());
+                }
+                cli.enable_server_certificate_verification(_uri.hasRealCert());
+                EZDateTime::Timer t;
+                t.start();
+                cli.set_follow_location(_uri.follow());
+                cli.set_default_headers(_uri.requestHeaders());
+                if (auto me = cli.Head(url)) {
+                    t.stop();
+                    res.responseTimeInMillis(t.asMillisenconds());
+                    res.httpCode(me->status);
+                    if (me->status == 200) {
+                        res.wasSuccessful(true);
+                        res.data = me->body;
+                    } else {
+                        res.message("Error Code: " + EZTools::EZString(me->status));
+                    }
+                } else {
+                    std::stringstream ss;
+                    ss << "error code: " << me.error() << std::endl;
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+                    auto result = cli.get_openssl_verify_result();
+                    if (result) {
+                        ss << "\nverify error: " << X509_verify_cert_error_string(result);
+                    }
+#endif
+                    res.message(ss.str());
+                }
+                return res;
+            }
+        }
+        void requestHeader(Headers headers) {
+            _uri.requestHeaders(headers.list());
+        }
+        void userAgent(EZTools::EZString UserAgent) {
+            _uri.requestHeaders().insert({"User-Agent", UserAgent});
+        }
+        void basicAuth(EZTools::EZString username, EZTools::EZString password) {
+            _uri.basicAuth(username, password);
+        }
     private:
         URI _uri;
-        bool _follow = false;
-        bool _verifySSL = true;
-        int _timeout = 15;
-        EZTools::EZString _ua;
-        EZTools::EZString _username;
-        EZTools::EZString _password;
-        HTTPHeaders _reqHeader;
     };
 
 }

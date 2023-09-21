@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,11 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZTOOLS_EZSYSLOG_H
 #define EZTOOLS_EZSYSLOG_H
 
+#pragma once
+
 #include <ostream>
 #include <streambuf>
 #include <string>
-
 #include <syslog.h>
 #include "EZTools.h"
 
@@ -44,7 +45,8 @@ namespace EZSyslog {
         WARNING = LOG_WARNING,
         ALERT = LOG_ALERT,
         INFO = LOG_INFO,
-        DEBUG = LOG_DEBUG
+        DEBUG = LOG_DEBUG,
+        QUITE = 0
     };
 
     inline EZTools::EZString logLevelAsEZSting(LOGLEVEL loglevel) {
@@ -59,6 +61,8 @@ namespace EZSyslog {
                 return "warning:";
             case CRITICAL:
                 return "critical:";
+            case QUITE:
+                return "quite";
             default:
                 return "";
         }

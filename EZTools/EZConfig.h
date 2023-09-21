@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,8 +30,10 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZCONFIG_H
 #define EZT_EZCONFIG_H
 
+#pragma once
+
 #include "EZFiles.h"
-#include "json.h"
+#include "nlohmann/json.hpp"
 
 namespace EZConfig {
 
@@ -41,26 +43,24 @@ namespace EZConfig {
         Config() = default;
         explicit Config(EZFiles::URI &confFile) {
             _configFile.setPath(confFile.path());
-            _isThere = _configFile.isThere();
-            if (_isThere) {
-                auto r = copyFileToEZString(_configFile);
+            if (_configFile.isThere()) {
+                auto r = copyFileToEZString(&_configFile);
                 root = nlohmann::json::parse(r.data);
             }
         }
         ~Config() = default;
         void init(EZFiles::URI &confFile) {
             _configFile.setPath(confFile.path());
-            _isThere = _configFile.isThere();
-            if (_isThere) {
-                auto r = copyFileToEZString(_configFile);
+            if (_configFile.isThere()) {
+                auto r = copyFileToEZString(&_configFile);
                 root = nlohmann::json::parse(r.data);
             }
         }
-        bool isThere() { return _isThere; }
+        bool isThere() { return _configFile.isThere(); }
         EZTools::EZString asString() { return root.dump(4); }
         static EZTools::EZReturn<bool> write() {
             EZTools::EZReturn<bool> res;
-            res.metaData.location = "EZConfig::isThere";
+            res.location("EZConfig::isThere");
 //    EZFileStat stat(_filename);
 //    if (stat.isWriteable()) {
 //        if (isThere()) {
@@ -79,7 +79,6 @@ namespace EZConfig {
 
     private:
         EZFiles::URI _configFile;
-        bool _isThere;
     };
 
 };

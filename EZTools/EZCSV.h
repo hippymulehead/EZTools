@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,8 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZCSV_H
 #define EZT_EZCSV_H
 
+#pragma once
+
 #include "EZTools.h"
 #include "EZFiles.h"
 
@@ -41,9 +43,11 @@ namespace EZCSV {
             bool head = false;
             _filename = filename;
             _file.setPath(filename);
-            if (_file.isThere() && _file.isReadable()) {
-                auto data = EZFiles::copyFileToEZString(_file);
-                auto rs = data.data.regexSplit("\r|\n");
+            if (_file.isThere() && _file.canRead()) {
+                auto data = EZFiles::copyFileToEZString(&_file);
+                data.data.regexReplace("\r", "\n");
+                data.data.regexReplace("\n\n$", "\n");
+                auto rs = data.data.split("\n");
                 for (auto& line : rs) {
                     int ty = 0;
                     if (line.regexMatch("^'")) {
@@ -56,13 +60,13 @@ namespace EZCSV {
                     std::vector<EZTools::EZString> st;
                     switch (ty) {
                         case 0:
-                            st = line.regexSplit(",");
+                            st = line.split(",");
                             break;
                         case 1:
-                            st = line.regexSplit("','");
+                            st = line.split("','");
                             break;
                         case 2:
-                            st = line.regexSplit("\",\"");
+                            st = line.split("\",\"");
                             break;
                     }
                     if (!head && hasHeaders) {

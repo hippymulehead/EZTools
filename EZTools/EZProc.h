@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,8 @@ either expressed or implied, of the MRUtils project.
 
 #ifndef EZT_EZPROC_H
 #define EZT_EZPROC_H
+
+#pragma once
 
 #include <fstream>
 #include "EZTools.h"
@@ -465,80 +467,82 @@ namespace EZProc {
         return loadA;
     }
 
-//    inline EZTools::TEST_RETURN TEST() {
-//        EZTools::TEST_RETURN res("EZProc", false);
-//        EZProcessList pl;
-//        auto p = pl.procs();
-//        if (p.empty()) {
-//            res.functionTest("EZProcessList.procs()");
-//            res.message("Empty");
-//            return res;
-//        }
-//        res.output << "EZProcessList.procs()" << std::endl;
-//        for (auto& pp: p) {
-//            res.output << "\t" << pp.BASECMD << std::endl;
-//        }
-//        auto u = pl.uid("dbus");
-//        if (u.empty()) {
-//            res.functionTest("EZProcessList.uid(\"dbus\")");
-//            res.message("Empty");
-//            return res;
-//        }
-//        res.output << "EZProcessList.uid(\"dbus\")" << std::endl;
-//        for (auto& pp: u) {
-//            res.output << "\t" << pp.UID << " " << pp.BASECMD << std::endl;
-//        }
-//        auto z = pl.baseCmd("dbus-broker");
-//        if (z.empty()) {
-//            res.functionTest("EZProcessList.baseCmd(\"dbus-broker\")");
-//            res.message("Empty");
-//            return res;
-//        }
-//        res.output << "EZProcessList.baseCmd(\"dbus-broker\")" << std::endl;
-//        for (auto& zz : z) {
-//            res.output << "\t" << zz.PID << " " << zz.BASECMD << std::endl;
-//        }
-//        auto q = pl.baseCmdRegexMatch("broker");
-//        if (q.empty()) {
-//            res.functionTest("EZProcessList.baseCmdRegexMatch(\"broker\")");
-//            res.message("Empty");
-//            return res;
-//        }
-//        res.output << "EZProcessList.baseCmdRegexMatch(\"broker\")" << std::endl;
-//        for (auto& zz : q) {
-//            res.output << "\t" << zz.PID << " " << zz.BASECMD << std::endl;
-//        }
-//        MemInfo mi;
-//        res.output << "MemInfo.total().asGigs(): " << mi.total().asGigs() << std::endl;
-//        res.output << "MemInfo.total().asMegs(): " << mi.total().asMegs() << std::endl;
-//        res.output << "MemInfo.free().asGigs(): " << mi.free().asGigs() << std::endl;
-//        res.output << "MemInfo.free().asMegs(): " << mi.free().asMegs() << std::endl;
-//        res.output << "MemInfo.available().asGigs(): " << mi.available().asGigs() << std::endl;
-//        res.output << "MemInfo.available().asMegs(): " << mi.available().asMegs() << std::endl;
-//        res.output << "MemInfo.swapTotal().asGigs(): " << mi.swapTotal().asGigs() << std::endl;
-//        res.output << "MemInfo.swapTotal().asMegs(): " << mi.swapTotal().asMegs() << std::endl;
-//        res.output << "MemInfo.swapFree().asGigs(): " << mi.swapFree().asGigs() << std::endl;
-//        res.output << "MemInfo.swapFree().asMegs(): " << mi.swapFree().asMegs() << std::endl;
-//        CPUInfo cpu;
-//        auto cp = cpu.cpu();
-//        res.output << "CPUInfo" << std::endl;
-//        for (auto& c: cp) {
-//            res.output << "\tProcessors: " << c.processor << std::endl;
-//            res.output << "\tCores     : " << c.cpu_cores << std::endl;
-//            res.output << "\tSpeed     : " << c.cpu_mhz << std::endl;
-//            res.output << "\tHyperT    : " << std::boolalpha << c.hyperthreading << std::endl;
-//        }
-//        auto sl = loadavg();
-//        res.output << "loadavg().oneMin     : " << sl.oneMin << std::endl;
-//        res.output << "loadavg().fiveMin    : " << sl.fiveMin << std::endl;
-//        res.output << "loadavg().fifteenMin : " << sl.fifteenMin << std::endl;
-//        auto rl = RealLoad();
-//        res.output << "RealLoad().oneMin    : " << rl.oneMin << std::endl;
-//        res.output << "RealLoad().fiveMin   : " << rl.fiveMin << std::endl;
-//        res.output << "RealLoad().fifteenMin: " << rl.fifteenMin << std::endl;
-//        res.wasSuccessful(true);
-//        return res;
-//    }
+    inline EZTools::TEST_RETURN TEST() {
+        EZTools::TEST_RETURN res("EZProc");
+        std::stringstream ss;
+        EZProcessList pl;
+        auto p = pl.procs();
+        if (p.empty()) {
+            res.functionTest("EZProcessList.procs()");
+            res.message("Empty");
+            return res;
+        }
+        ss << "EZProcessList.procs()" << std::endl;
+        for (auto& pp: p) {
+            ss << "\t" << pp.BASECMD << std::endl;
+        }
+        auto u = pl.uid("dbus");
+        if (u.empty()) {
+            res.functionTest("EZProcessList.uid(\"dbus\")");
+            res.message("Empty");
+            return res;
+        }
+        ss << "EZProcessList.uid(\"dbus\")" << std::endl;
+        for (auto& pp: u) {
+            ss << "\t" << pp.UID << " " << pp.BASECMD << std::endl;
+        }
+        auto z = pl.baseCmd("bash");
+        if (z.empty()) {
+            res.functionTest("EZProcessList.baseCmd(\"bash\")");
+            res.message("Empty");
+            return res;
+        }
+        ss << "EZProcessList.baseCmd(\"bash\")" << std::endl;
+        for (auto& zz : z) {
+            ss << "\t" << zz.PID << " " << zz.BASECMD << std::endl;
+        }
+        auto q = pl.baseCmdRegexMatch("bash");
+        if (q.empty()) {
+            res.functionTest("EZProcessList.baseCmdRegexMatch(\"bash\")");
+            res.message("Empty");
+            return res;
+        }
+        ss << "EZProcessList.baseCmdRegexMatch(\"bash\")" << std::endl;
+        for (auto& zz : q) {
+            ss << "\t" << zz.PID << " " << zz.BASECMD << std::endl;
+        }
+        MemInfo mi;
+        ss << "MemInfo.total().asGigs(): " << mi.total().asGigs() << std::endl;
+        ss << "MemInfo.total().asMegs(): " << mi.total().asMegs() << std::endl;
+        ss << "MemInfo.free().asGigs(): " << mi.free().asGigs() << std::endl;
+        ss << "MemInfo.free().asMegs(): " << mi.free().asMegs() << std::endl;
+        ss << "MemInfo.available().asGigs(): " << mi.available().asGigs() << std::endl;
+        ss << "MemInfo.available().asMegs(): " << mi.available().asMegs() << std::endl;
+        ss << "MemInfo.swapTotal().asGigs(): " << mi.swapTotal().asGigs() << std::endl;
+        ss << "MemInfo.swapTotal().asMegs(): " << mi.swapTotal().asMegs() << std::endl;
+        ss << "MemInfo.swapFree().asGigs(): " << mi.swapFree().asGigs() << std::endl;
+        ss << "MemInfo.swapFree().asMegs(): " << mi.swapFree().asMegs() << std::endl;
+        CPUInfo cpu;
+        auto cp = cpu.cpu();
+        ss << "CPUInfo" << std::endl;
+        for (auto& c: cp) {
+            ss << "\tProcessors: " << c.processor << std::endl;
+            ss << "\tCores     : " << c.cpu_cores << std::endl;
+            ss << "\tSpeed     : " << c.cpu_mhz << std::endl;
+            ss << "\tHyperT    : " << std::boolalpha << c.hyperthreading << std::endl;
+        }
+        auto sl = loadavg();
+        ss << "loadavg().oneMin     : " << sl.oneMin << std::endl;
+        ss << "loadavg().fiveMin    : " << sl.fiveMin << std::endl;
+        ss << "loadavg().fifteenMin : " << sl.fifteenMin << std::endl;
+        auto rl = RealLoad();
+        ss << "RealLoad().oneMin    : " << rl.oneMin << std::endl;
+        ss << "RealLoad().fiveMin   : " << rl.fiveMin << std::endl;
+        ss << "RealLoad().fifteenMin: " << rl.fifteenMin << std::endl;
+        res.output(ss.str());
+        res.wasSuccessful(true);
+        return res;
+    }
 }
 
 #endif //EZT_EZPROC_H

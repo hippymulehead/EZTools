@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,8 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZIP_H
 #define EZT_EZIP_H
 
+#pragma once
+
 #include <cstdio>
 #include <netdb.h>
 #include <ifaddrs.h>
@@ -44,8 +46,7 @@ either expressed or implied, of the MRUtils project.
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <linux/if.h>
-
+//#include <linux/if.h>
 #include "EZTools.h"
 #include "EZLinux.h"
 #include "EZDateTime.h"
@@ -66,12 +67,13 @@ namespace EZIP {
     inline std::vector<int> getOctets(EZTools::EZString address) {
         auto octs = address.regexExtract(EZTools::IPv4Regex);
         std::vector<int> res;
-        if (octs.size() != 4) {
+        if (octs.size() != 5) {
             return res;
         }
-        for (auto& oct : octs) {
-            res.push_back(oct.asInt());
-        }
+        res.push_back(octs.at(1).asInt());
+        res.push_back(octs.at(2).asInt());
+        res.push_back(octs.at(3).asInt());
+        res.push_back(octs.at(4).asInt());
         return res;
     }
 
@@ -118,41 +120,41 @@ namespace EZIP {
         std::vector<IPAddressData> _ips;
     };
 
-    inline bool isInterfaceUp(std::string interface) {
-        struct ifreq ifr;
-        int sock = socket(PF_INET6, SOCK_DGRAM, IPPROTO_IP);
-        memset(&ifr, 0, sizeof(ifr));
-        strcpy(ifr.ifr_name, interface.c_str());
-        if (ioctl(sock, SIOCGIFFLAGS, &ifr) < 0) {
-            perror("SIOCGIFFLAGS");
-        }
-        close(sock);
-        return (ifr.ifr_flags & IFF_UP) != 0;
-    }
+//    inline bool isInterfaceUp(std::string interface) {
+//        struct ifreq ifr;
+//        int sock = socket(PF_INET6, SOCK_DGRAM, IPPROTO_IP);
+//        memset(&ifr, 0, sizeof(ifr));
+//        strcpy(ifr.ifr_name, interface.c_str());
+//        if (ioctl(sock, SIOCGIFFLAGS, &ifr) < 0) {
+//            perror("SIOCGIFFLAGS");
+//        }
+//        close(sock);
+//        return (ifr.ifr_flags & IFF_UP) != 0;
+//    }
 
-    inline IPAddresses localIPAddresses() {
-        IPAddresses addresses;
-        struct ifaddrs *interfaces = nullptr;
-        struct ifaddrs *temp_addr = nullptr;
-        int success = 0;
-        // retrieve the current interfaces - returns 0 on success
-        success = getifaddrs(&interfaces);
-        if (success == 0) {
-            temp_addr = interfaces;
-            while(temp_addr != nullptr) {
-                if (isInterfaceUp(temp_addr->ifa_name)) {
-                    if (temp_addr->ifa_addr->sa_family == AF_INET) {
-                        addresses.addPair(temp_addr->ifa_name,
-                                          inet_ntoa(((struct sockaddr_in *) temp_addr->ifa_addr)->sin_addr));
-                    }
-                }
-                temp_addr = temp_addr->ifa_next;
-            }
-        }
-        // Free memory
-        freeifaddrs(interfaces);
-        return addresses;
-    }
+//    inline IPAddresses localIPAddresses() {
+//        IPAddresses addresses;
+//        struct ifaddrs *interfaces = nullptr;
+//        struct ifaddrs *temp_addr = nullptr;
+//        int success = 0;
+//        // retrieve the _high interfaces - returns 0 on success
+//        success = getifaddrs(&interfaces);
+//        if (success == 0) {
+//            temp_addr = interfaces;
+//            while(temp_addr != nullptr) {
+//                if (isInterfaceUp(temp_addr->ifa_name)) {
+//                    if (temp_addr->ifa_addr->sa_family == AF_INET) {
+//                        addresses.addPair(temp_addr->ifa_name,
+//                                          inet_ntoa(((struct sockaddr_in *) temp_addr->ifa_addr)->sin_addr));
+//                    }
+//                }
+//                temp_addr = temp_addr->ifa_next;
+//            }
+//        }
+//        // Free memory
+//        freeifaddrs(interfaces);
+//        return addresses;
+//    }
 
     class IPAddress {
     public:
@@ -182,7 +184,7 @@ namespace EZIP {
                 _isGood = false;
             }
         }
-        bool isGood() { return _isGood; }
+        [[nodiscard]] bool isGood() const { return _isGood; }
         EZTools::EZString asString() {
             std::stringstream ss;
             if (_isGood) {
@@ -193,7 +195,7 @@ namespace EZIP {
             return ss.str();
         }
         void port(int portNumber) { _port = portNumber; }
-        int port() { return _port; }
+        [[nodiscard]] int port() const { return _port; }
         bool canConnect() {
             int portno     = _port;
             int sockfd;
@@ -230,167 +232,172 @@ namespace EZIP {
             }
         }
         float connectTime() { return _time; }
+        std::vector<int> octets() { return _octs; }
     private:
-        bool _isGood;
+        bool _isGood = true;
         std::vector<int> _octs;
         int _port;
         float _time;
     };
 
-    class LocalIPAddress {
-    public:
-        LocalIPAddress() {
-            auto ips = localIPAddresses();
-            auto temp = EZLinux::exec("/sbin/route | grep '^default'");
-            if (!temp.data.empty()) {
-                temp.data = temp.data.regexReplace("\n", "");
-                while (temp.data.regexMatch("  ")) {
-                    temp.data = temp.data.regexReplace("  ", " ");
-                }
-                std::vector<EZTools::EZString> data = temp.data.split(" ");
-                _internetConnected = true;
-                _defaultInterface = data.at(data.size() - 1);
-            } else {
-                _internetConnected = false;
-            }
-            if (_defaultInterface.regexMatch("^w")) {
-                _defaultIP = ips.wifiAddress();
-                _interfaceType = EZTools::INTERFACETYPE::WIFI;
-            } else if (_defaultInterface.regexMatch("^e")) {
-                _defaultIP = ips.ethernetAddress();
-                _interfaceType = EZTools::INTERFACETYPE::ETHERNET;
-            } else {
-                _defaultIP = ips.localAddress();
-                _interfaceType = EZTools::INTERFACETYPE::LOCALHOST;
-            }
-            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract(EZTools::IPv4Regex);
-            if (octs.empty()) {
-                _isGood = false;
-            } else {
-                for (auto i = 0; i < 4; i++) {
-                    _octs.push_back(octs.at(i + 1).asInt());
-                    _isGood = true;
-                }
-            }
-        }
-        ~LocalIPAddress() = default;
-        void retest() {
-            auto ips = localIPAddresses();
-            auto temp = EZLinux::exec("/sbin/route | grep '^default'");
-            if (!temp.data.empty()) {
-                temp.data = temp.data.regexReplace("\n", "");
-                while (temp.data.regexMatch("  ")) {
-                    temp.data = temp.data.regexReplace("  ", " ");
-                }
-                std::vector<EZTools::EZString> data = temp.data.split(" ");
-                _internetConnected = true;
-                _defaultInterface = data.at(data.size() - 1);
-            } else {
-                _internetConnected = false;
-            }
-            if (_defaultInterface.regexMatch("^w")) {
-                _defaultIP = ips.wifiAddress();
-                _interfaceType = EZTools::INTERFACETYPE::WIFI;
-            } else if (_defaultInterface.regexMatch("^e")) {
-                _defaultIP = ips.ethernetAddress();
-                _interfaceType = EZTools::INTERFACETYPE::ETHERNET;
-            } else {
-                _defaultIP = ips.localAddress();
-                _interfaceType = EZTools::INTERFACETYPE::LOCALHOST;
-            }
-            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract(EZTools::IPv4Regex);
-            if (octs.empty()) {
-                _isGood = false;
-            } else {
-                for (auto i = 0; i < 4; i++) {
-                    _octs.push_back(octs.at(i + 1).asInt());
-                    _isGood = true;
-                }
-            }
-        }
-        bool testStack() {
-            retest();
-            if (!hasInternet()) {
-                return false;
-            }
-            if (!canRoute()) {
-                return false;
-            }
-            if (!isRoutable()) {
-                EZTools::EZString nat = NATAddress();
-                if (nat.empty()) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        bool isGoodIP() { return _isGood; }
-        EZTools::EZString asString() {
-            std::stringstream ss;
-            if (_isGood) {
-                return _defaultIP;
-            } else {
-                ss << "";
-            }
-            return ss.str();
-        }
-        bool isRoutable() {
-            if (_isGood) {
-                return !(_octs[0] == 10
-                         || _octs[0] == 127
-                         || (_octs[0] == 169 && _octs[1] == 254)
-                         || (_octs[0] == 172 && _octs[1] == 16)
-                         || (_octs[0] == 192 && _octs[1] == 0 && _octs[2] == 0)
-                         || (_octs[0] == 192 && _octs[1] == 168));
-            }
-            return false;
-        }
-        bool canRoute() {
-            if (_isGood) {
-                if (_octs[0] == 127) return false;
-                if (_octs[0] == 169) {
-                    if (_octs[1] == 254) return false;
-                }
-            }
-            return true;
-        }
-        EZTools::EZString NATAddress() {
-            EZTools::EZString externalIP;
-            if (canRoute()) {
-                if (!isRoutable()) {
-                    EZHTTP::URI ipify("\"https://api.ipify.org/?format=json");
-                    ipify.userAgent("EZTools v4 ip module");
-                    EZHTTP::HTTP http;
-                    auto response = http.get(ipify);
-                    if (response.wasSuccessful()) {
-                        externalIP = response.data();
-                        externalIP.regexReplace("^{\"ip\":\"|\"}", "");
-                        return externalIP;
-                    }
-                } else {
-                    return asString();
-                }
-            } else {
-                return "";
-            }
-            return "";
-        }
-        EZTools::EZString interface() { return _defaultInterface; }
-        bool hasInternet() { return _internetConnected; }
-        EZTools::INTERFACETYPE interfaceType() { return _interfaceType; }
-
-    private:
-        std::vector<int> _octs;
-        bool _isGood = false;
-        EZTools::EZString _defaultInterface;
-        EZTools::EZString _defaultIP;
-        bool _internetConnected;
-        EZTools::INTERFACETYPE _interfaceType;
-    };
+//    class LocalIPAddress {
+//    public:
+//        LocalIPAddress() {
+//            auto ips = localIPAddresses();
+//            auto temp = EZLinux::exec("/sbin/route | grep '^default'");
+//            if (!temp.data.empty()) {
+//                temp.data = temp.data.regexReplace("\n", "");
+//                while (temp.data.regexMatch("  ")) {
+//                    temp.data = temp.data.regexReplace("  ", " ");
+//                }
+//                std::vector<EZTools::EZString> data = temp.data.split(" ");
+//                _internetConnected = true;
+//                _defaultInterface = data.at(data.size() - 1);
+//            } else {
+//                _internetConnected = false;
+//            }
+//            if (_defaultInterface.regexMatch("^w")) {
+//                _defaultIP = ips.wifiAddress();
+//                _interfaceType = EZTools::INTERFACETYPE::WIFI;
+//            } else if (_defaultInterface.regexMatch("^e")) {
+//                _defaultIP = ips.ethernetAddress();
+//                _interfaceType = EZTools::INTERFACETYPE::ETHERNET;
+//            } else {
+//                _defaultIP = ips.localAddress();
+//                _interfaceType = EZTools::INTERFACETYPE::LOCALHOST;
+//            }
+//            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract(EZTools::IPv4Regex);
+//            if (octs.empty()) {
+//                _isGood = false;
+//            } else {
+//                for (auto i = 0; i < 4; i++) {
+//                    _octs.push_back(octs.at(i + 1).asInt());
+//                    _isGood = true;
+//                }
+//            }
+//        }
+//        ~LocalIPAddress() = default;
+//        void retest() {
+//            auto ips = localIPAddresses();
+//            auto temp = EZLinux::exec("/sbin/route | grep '^default'");
+//            if (!temp.data.empty()) {
+//                temp.data = temp.data.regexReplace("\n", "");
+//                while (temp.data.regexMatch("  ")) {
+//                    temp.data = temp.data.regexReplace("  ", " ");
+//                }
+//                std::vector<EZTools::EZString> data = temp.data.split(" ");
+//                _internetConnected = true;
+//                _defaultInterface = data.at(data.size() - 1);
+//            } else {
+//                _internetConnected = false;
+//            }
+//            if (_defaultInterface.regexMatch("^w")) {
+//                _defaultIP = ips.wifiAddress();
+//                _interfaceType = EZTools::INTERFACETYPE::WIFI;
+//            } else if (_defaultInterface.regexMatch("^e")) {
+//                _defaultIP = ips.ethernetAddress();
+//                _interfaceType = EZTools::INTERFACETYPE::ETHERNET;
+//            } else {
+//                _defaultIP = ips.localAddress();
+//                _interfaceType = EZTools::INTERFACETYPE::LOCALHOST;
+//            }
+//            std::vector<EZTools::EZString> octs = _defaultIP.regexExtract(EZTools::IPv4Regex);
+//            if (octs.empty()) {
+//                _isGood = false;
+//            } else {
+//                for (auto i = 0; i < 4; i++) {
+//                    _octs.push_back(octs.at(i + 1).asInt());
+//                    _isGood = true;
+//                }
+//            }
+//        }
+//        bool testStack() {
+//            retest();
+//            if (!hasInternet()) {
+//                return false;
+//            }
+//            if (!canRoute()) {
+//                return false;
+//            }
+//            if (!isRoutable()) {
+//                EZTools::EZString nat = NATAddress();
+//                if (nat.empty()) {
+//                    return false;
+//                }
+//            }
+//            return true;
+//        }
+//        bool isGoodIP() { return _isGood; }
+//        EZTools::EZString asString() {
+//            std::stringstream ss;
+//            if (_isGood) {
+//                return _defaultIP;
+//            } else {
+//                ss << "";
+//            }
+//            return ss.str();
+//        }
+//        bool isRoutable() {
+//            if (_isGood) {
+//                return !(_octs[0] == 10
+//                         || _octs[0] == 127
+//                         || (_octs[0] == 169 && _octs[1] == 254)
+//                         || (_octs[0] == 172 && _octs[1] == 16)
+//                         || (_octs[0] == 192 && _octs[1] == 0 && _octs[2] == 0)
+//                         || (_octs[0] == 192 && _octs[1] == 168));
+//            }
+//            return false;
+//        }
+//        bool canRoute() {
+//            if (_isGood) {
+//                if (_octs[0] == 127) return false;
+//                if (_octs[0] == 169) {
+//                    if (_octs[1] == 254) return false;
+//                }
+//            }
+//            return true;
+//        }
+//        EZTools::EZString NATAddress() {
+//            EZTools::EZString externalIP;
+//            if (canRoute()) {
+//                if (!isRoutable()) {
+//                    EZHTTP::URI ipify("\"https://api.ipify.org/");
+//                    std::stringstream vn;
+//                    vn << "EZTools v" << VERSION;
+//                    httplib::Headers headers = {
+//                            {"User-Agent",vn.str()}
+//                    };
+//                    EZHTTP::HTTPClient http(ipify);
+//                    auto response = http.get("?format=json");
+//                    if (response.wasSuccessful()) {
+//                        externalIP = response.data;
+//                        externalIP.regexReplace("^{\"ip\":\"|\"}", "");
+//                        return externalIP;
+//                    }
+//                } else {
+//                    return asString();
+//                }
+//            } else {
+//                return "";
+//            }
+//            return "";
+//        }
+//        EZTools::EZString interface() { return _defaultInterface; }
+//        bool hasInternet() { return _internetConnected; }
+//        EZTools::INTERFACETYPE interfaceType() { return _interfaceType; }
+//
+//    private:
+//        std::vector<int> _octs;
+//        bool _isGood = false;
+//        EZTools::EZString _defaultInterface;
+//        EZTools::EZString _defaultIP;
+//        bool _internetConnected;
+//        EZTools::INTERFACETYPE _interfaceType;
+//    };
 
     inline EZHTTP::URI ezipToURI(EZTools::CONNECTIONTYPE type, EZIP::IPAddress &ezip, EZTools::EZString path,
-            int timeout = 15, EZTools::EZString username = "", EZTools::EZString password = "",
-            bool hasRealCert = true) {
+                                 int timeout = 15, EZTools::EZString username = "", EZTools::EZString password = "",
+                                 bool hasRealCert = true) {
         std::stringstream ss;
         switch (type) {
             case EZTools::CONNECTIONTYPE::HTTP:
@@ -408,8 +415,48 @@ namespace EZIP {
             ss << "/";
         }
         ss << path;
-        EZHTTP::URI uri(ss.str(), timeout, username, password, hasRealCert);
+        EZHTTP::URI uri(ss.str(), timeout, hasRealCert);
+        uri.basicAuth(username, password);
         return uri;
+    }
+
+    inline EZTools::EZReturn<EZIP::IPAddress> getLocalIPAddress() {
+        EZTools::EZReturn<EZIP::IPAddress> res;
+        auto ip = EZLinux::exec("hostname -I | awk '{print $1}'");
+        auto sp = ip.data.split("\n");
+        EZIP::IPAddress ipa(sp.at(0));
+        if (!ipa.isGood()) {
+            res.message("Couldn't get valid Local IP");
+            return res;
+        }
+        res.wasSuccessful(true);
+        res.data = ipa;
+        return res;
+    }
+
+    inline EZTools::TEST_RETURN TEST() {
+        EZTools::TEST_RETURN res("EZIP");
+        std::stringstream ss;
+        ss << "EZIP::IPAddress address(\"192.168.1.42\")" << std::endl;
+        EZIP::IPAddress address("192.168.1.42");
+        if (!address.isGood()) {
+            res.functionTest("EZIP::IPAddress(\"192.168.1.42\")");
+            res.message("EZIP::IPAddress address(\"192.168.1.42\")");
+            res.output(ss.str());
+            return res;
+        }
+        ss << "EZIP::getLocalIPAddress()" << std::endl;
+        auto localIP = EZIP::getLocalIPAddress();
+        if (!localIP) {
+            res.functionTest("EZIP::getLocalIPAddress()");
+            res.message("EZIP::getLocalIPAddress()");
+            res.output(ss.str());
+            return res;
+        }
+        ss << localIP.data.asString() << std::endl;
+        res.output(ss.str());
+        res.wasSuccessful(true);
+        return res;
     }
 
 };

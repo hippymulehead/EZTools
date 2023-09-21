@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,8 @@ either expressed or implied, of the MRUtils project.
 
 #ifndef EZT_EZGETOPT_H
 #define EZT_EZGETOPT_H
+
+#pragma once
 
 #include <map>
 #include "EZTools.h"
@@ -135,7 +137,7 @@ namespace EZGetOpt {
         }
         EZTools::EZReturn<bool> parseOptions() {
             EZTools::EZReturn<bool> res;
-            res.metaData.location = "EZGetOpt::parseOptions";
+            res.location("EZGetOpt::parseOptions");
             std::vector<EZTools::EZString> noOpts;
             std::vector<EZTools::EZString> opts;
             int noOptCounter = 0;
@@ -184,20 +186,23 @@ namespace EZGetOpt {
                 }
             }
             if (!_helpOrVersion) {
-                if (_unpairedArgs.size() < _unpairedRequired) {
-                    std::stringstream ss;
-                    ss << "Not enough arguments, " << _unpairedArgs.size() << " found but " << _unpairedRequired
-                        << " required";
-                    res.message(ss.str());
-                    res.exitCode(12);
-                    res.wasSuccessful(false);
-                    return res;
+                if (_requireUnpairedArgs) {
+                    if (_unpairedArgs.size() < _unpairedRequired) {
+                        std::stringstream ss;
+                        ss << "Not enough arguments, " << _unpairedArgs.size() << " found but " << _unpairedRequired
+                           << " required";
+                        res.message(ss.str());
+                        res.exitCode(12);
+                        res.wasSuccessful(false);
+                        return res;
+                    }
                 }
             }
             res.wasSuccessful(true);
             return res;
         }
         std::vector<EZTools::EZString> unpairedArgs() { return _unpairedArgs; }
+        void dontRequireUnpairedArgs() { _requireUnpairedArgs = false;}
         int requiredUnpairedArgs() { return _unpairedRequired; }
 
     private:
@@ -214,6 +219,7 @@ namespace EZGetOpt {
         unsigned long long _unpairedRequired = 0;
         std::vector<EZTools::EZString> _unpairedNames;
         std::map<EZTools::EZString, EZTools::EZString> _requiredArgs;
+        bool _requireUnpairedArgs = true;
     };
 }
 

@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018-2019, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,12 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZRANDOM_H
 #define EZT_EZRANDOM_H
 
+#pragma once
+
 #include <sodium.h>
 #include <fstream>
 #include "EZTools.h"
-#include "json.h"
+#include "nlohmann/json.hpp"
 
 namespace EZRandom {
 
@@ -60,15 +62,19 @@ namespace EZRandom {
     public:
         EZRand() = default;
         ~EZRand() = default;
-        int Int() { return randombytes_random(); }
-        unsigned long int UnsignedLong() { return randombytes_random(); }
-        unsigned long long int UnsignedLongLong() { return randombytes_random(); }
+        int IntNotUniform() { return randombytes_random(); }
+        int IntUniform() { return randombytes_uniform(4294967295); }
+//        unsigned long int UnsignedLong() { return randombytes_random(); }
+//        unsigned long long int UnsignedLongLong() { return randombytes_random(); }
         float Float() { return randombytes_random(); }
         double Double() { return randombytes_random(); }
-        int Int(uint32_t upper) { return randombytes_uniform(upper) + 1; }
-        char Char() { return char(randombytes_uniform(128)); }
+        unsigned int IntUniform(uint32_t upper) { return randombytes_uniform(upper) + 1; }
+        unsigned int IntNotUniform(uint32_t upper) {
+            return randombytes_random() % upper;
+        }
+        char Char() { return char(IntNotUniform(128)); }
         bool Bool() {
-            int i = Int(100);
+            unsigned int i = IntNotUniform(100);
             return i > 50;
         }
     };
@@ -85,21 +91,21 @@ namespace EZRandom {
         while (notdone) {
             std::stringstream ss;
             for (int i = 0; i < length; i++) {
-                auto t = rnd.Int(4);
+                auto t = rnd.IntUniform(4);
                 EZTools::EZString l;
                 switch (t) {
                     case 1:
-                        l = alpha.at(rnd.Int(alpha.size()) - 1);
+                        l = alpha.at(rnd.IntUniform(alpha.size()) - 1);
                         break;
                     case 2:
-                        l = alpha.at(rnd.Int(alpha.size()) - 1);
+                        l = alpha.at(rnd.IntUniform(alpha.size()) - 1);
                         l = l.upper();
                         break;
                     case 3:
-                        l = rnd.Int(10) - 1;
+                        l = rnd.IntUniform(10) - 1;
                         break;
                     case 4:
-                        l = special.at(rnd.Int(special.size()) - 1);
+                        l = special.at(rnd.IntUniform(special.size()) - 1);
                         break;
                     default:
                         l = "__";

@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,8 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZNAGIOS_H
 #define EZT_EZNAGIOS_H
 
+#pragma once
+
 #include "EZTools.h"
 
 namespace EZNagios {
@@ -38,13 +40,42 @@ namespace EZNagios {
     public:
         Nagios() = default;
         ~Nagios() = default;
-        void exit(EZTools::NAGIOS_EXIT_LEVELS exitLevel) {
-            std::cout << NAGEXITLEVELSAsEZSting(exitLevel) << _message.str() << std::endl;
+        EZTools::EZString exit(EZTools::NAGIOS_EXIT_LEVELS exitLevel, bool testing = false) {
+            std::stringstream ss;
+            if (_title.empty()) {
+                ss << NAGEXITLEVELSAsEZSting(exitLevel) << _message.str();
+            } else {
+                ss << NAGEXITLEVELSAsEZSting(exitLevel) << _title.str();
+            }
+            bool first = true;
+            if (!_dataPoints.empty()) {
+                for (auto& m : _dataPoints) {
+                    if (first) {
+                        ss << "|";
+                        first = false;
+                    } else {
+                        ss << ";";
+                    }
+                    ss << m.first << "=" << m.second;
+                }
+            }
+            if (testing) {
+                return ss.str();
+            }
+            std::cout << ss.str() << std::endl;
             std::exit(exitLevel);
+        }
+        void addDataPoint(EZTools::EZString name, EZTools::EZString data) {
+            _dataPoints.insert(std::pair<EZTools::EZString, EZTools::EZString>(name, data));
+        }
+        void title(EZTools::EZString title) {
+            _title = title;
         }
 
     private:
         std::stringstream _message;
+        std::map<EZTools::EZString, EZTools::EZString> _dataPoints;
+        EZTools::EZString _title;
         template<typename T>
         friend std::ostream &operator<<(Nagios &log, T op) {
             log._message << op;
@@ -63,6 +94,21 @@ namespace EZNagios {
             }
         }
     };
+
+    inline EZTools::TEST_RETURN TEST() {
+        EZTools::TEST_RETURN res("EZNagios");
+        EZNagios::Nagios nag;
+        nag << "TEST MESSAGE";
+        auto re = nag.exit(EZTools::NAG_OK, true);
+        if (re == "OK: TEST MESSAGE") {
+            res.wasSuccessful(true);
+            res.output(re);
+            return res;
+        } else {
+            res.message("Message didn't match: "+re);
+            return res;
+        }
+    }
 
 }
 

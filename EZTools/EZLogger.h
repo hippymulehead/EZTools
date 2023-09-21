@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,8 @@ either expressed or implied, of the MRUtils project.
 
 #ifndef EZT_EZLOGGER_H
 #define EZT_EZLOGGER_H
+
+#pragma once
 
 #include "EZFiles.h"
 #include "EZDateTime.h"
@@ -136,8 +138,8 @@ namespace EZLogger {
         template<typename T>
         friend std::ostream &operator<<(Logger &log, T op) {
             if (log._writeLevel >= log._currentLogLevel) {
-                EZDateTime::CurrentDateTime dt;
-                log._os << dt.ymdto() << " " << log.LogLevelAsString() << op;
+                EZDateTime::DateTime dt;
+                log._os << dt.ymdtWithMilliSeconds() << " " << log.LogLevelAsString() << op;
                 return log._os;
             } else {
                 return log._null;

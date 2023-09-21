@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,177 +30,276 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZDICE_H
 #define EZT_EZDICE_H
 
-#include "../EZTools/EZRandom.h"
-#include "../EZTools/EZTools.h"
-#include "../EZTools/json.h"
+#pragma once
+
+#include "EZRandom.h"
+#include "EZTools.h"
+#include "nlohmann/json.hpp"
 
 namespace EZDice {
 
-    struct diceRoll {
-        int sides;
-        int times;
-        std::vector<int> roll;
-        int total;
+    enum Dice_t {
+        COIN = 2,
+        D4 = 4,
+        D6 = 6,
+        D8 = 8,
+        D10 = 10,
+        D12 = 12,
+        D20 = 20,
+        PERCENT = 100
     };
 
-    class Dice_Object {
+    enum RND_t {
+        UNIFORM,
+        NONUNIFORM
+    };
+
+    inline RND_t RND_t_asEZString (EZTools::EZString t ) {
+        if (t.upper() == "UNIFORM") {
+            return UNIFORM;
+        } else {
+            return RND_t::NONUNIFORM;
+        }
+    }
+
+    struct Roll_t {
+        Dice_t sides = COIN;
+        unsigned int total = 0;
+    };
+
+    class Dice {
     public:
-        Dice_Object(EZTools::EZString historyName) {
+        explicit Dice(RND_t rollType) {
+            _rollType = rollType;
             EZRandom::init();
-            _historyName = historyName;
         }
-        ~Dice_Object() = default;
-        std::vector<diceRoll> history;
-        nlohmann::json historyAsJSON() {
-            nlohmann::json res;
-            res[_historyName] = nlohmann::json::array();
-            int counter = 1;
-            for (auto& d : history) {
-                nlohmann::json dd;
-                dd["id"] = counter;
-                dd["sides"] = d.sides;
-                dd["times"] = d.times;
-                dd["total"] = d.total;
-                dd["roll"] = d.roll;
-                res[_historyName].push_back(dd);
-                counter++;
-            }
-            return res;
-        }
-        diceRoll lastRoll() {
-            return history[history.size() - 1];
-        }
-
-    protected:
-        EZRandom::EZRand randomSource;
-        EZTools::EZString _historyName;
-        int roll(int sides, int times) {
-            diceRoll dr;
-            dr.sides = sides;
-            dr.times = times;
-            int total = 0;
+        ~Dice() = default;
+        unsigned int roll(std::vector<Dice_t> dice, int times = 1) {
+            unsigned int total = 0;
             for (int i = 0; i < times; i++) {
-                int t = randomSource.Int(sides);
-                dr.roll.push_back(t);
-                total += t;
+                for (auto &d: dice) {
+                    switch (_rollType) {
+                        case UNIFORM:
+                            _last.total = _randomSource.IntUniform(d);
+                            break;
+                        case NONUNIFORM:
+                            _last.total = _randomSource.IntNotUniform(d) + 1;
+                            break;
+                    }
+                    _last.sides = d;
+                    _history.emplace_back(_last);
+                    total = total + _last.total;
+                }
             }
-            dr.total = total;
-            history.push_back(dr);
             return total;
         }
-    };
-
-    class D20Dice : public Dice_Object {
-    public:
-        D20Dice(EZTools::EZString historyName): Dice_Object(historyName) {}
-        int coin() {
-            int total = randomSource.Int(2);
-            diceRoll dr;
-            dr.total = total;
-            dr.sides = 2;
-            dr.times = 1;
-            dr.roll.push_back(total);
-            history.push_back(dr);
-            return total;
-        }
-        EZTools::EZString coinAsString() {
-            int total = randomSource.Int(2);
-            diceRoll dr;
-            dr.total = total;
-            dr.sides = 2;
-            dr.times = 1;
-            dr.roll.push_back(total);
-            history.push_back(dr);
-            return _coinAsString(total);
-        }
-        int d4(int times = 1) { return roll(4, times); }
-        int d6(int times = 1) { return roll(6, times); }
-        int d8(int times = 1) { return roll(8, times); }
-        int d10(int times = 1) { return roll(10, times); }
-        int dPercentage() {
-            int total = randombytes_uniform(101);
-            diceRoll dr;
-            dr.sides = 100;
-            dr.times = 100;
-            dr.roll.push_back(total);
-            return total;
-        }
-        int d12(int times = 1) { return roll(12, times); }
-        int d20(int times = 1) { return roll(20, times); }
-
-    protected:
-        static EZTools::EZString _coinAsString(int value) {
-            if (value == 1) {
-                return "Heads";
+        EZTools::EZString lastAsCoin() {
+            if (_last.sides != COIN) {
+                return "Not a coin toss";
+            }
+            if (_last.total == 1) {
+                return "heads";
             } else {
-                return "Tails";
+                return "tails";
             }
         }
-    };
-
-    class D6Dice : public Dice_Object {
-    public:
-        D6Dice(EZTools::EZString historyName): Dice_Object(historyName) {}
-        int rollDice(int times = 1) { return roll(6, times); }
-    };
-
-    class CoinFlip : public Dice_Object {
-    public:
-        CoinFlip(EZTools::EZString historyName): Dice_Object(historyName) {}
-        int asInt() {
-            int total = randomSource.Int(2);
-            diceRoll dr;
-            dr.sides = 2;
-            dr.times = 1;
-            dr.total = total;
-            dr.roll.push_back(total);
-            history.push_back(dr);
-            return total;
+        std::vector<Roll_t> history() { return _history; }
+        nlohmann::json historyAsJSON() {
+            nlohmann::json root = nlohmann::json::array();
+            int c = 1;
+            for (auto& h : _history) {
+                nlohmann::json p;
+                p["roll"] = c;
+                p["sides"] = h.sides;
+                p["val"] = h.total;
+                root.push_back(p);
+                c++;
+            }
+            return root;
         }
-        EZTools::EZString asString() {
-            int total = randomSource.Int(2);
-            diceRoll dr;
-            dr.total = total;
-            dr.sides = 2;
-            dr.times = 1;
-            dr.roll.push_back(total);
-            history.push_back(dr);
-            return _coinAsString(total);
-        }
+        // historyAsJSON
+        Roll_t last() { return _last; }
+
     private:
-        static EZTools::EZString _coinAsString(int value) {
-            if (value == 1) {
-                return "Heads";
-            } else {
-                return "Tails";
-            }
-        }
+        EZRandom::EZRand _randomSource;
+        std::vector<Roll_t> _history;
+        Roll_t _last;
+        RND_t _rollType;
     };
 
-//    inline EZTools::TEST_RETURN TEST() {
-//        EZTools::TEST_RETURN res("EZDice", false);
-//        D20Dice d("d20");
-//        res.output << "\tD20Dice.coin(): " << d.coin() << std::endl;
-//        res.output << "\tD20Dice.coinAsString(): " << d.coinAsString() << std::endl;
-//        res.output << "\tD20Dice.d4(): " << d.d4() << std::endl;
-//        res.output << "\tD20Dice.d6(): " << d.d6() << std::endl;
-//        res.output << "\tD20Dice.d8(): " << d.d8() << std::endl;
-//        res.output << "\tD20Dice.d10(): " << d.d10() << std::endl;
-//        res.output << "\tD20Dice.d12(): " << d.d12() << std::endl;
-//        res.output << "\tD20Dice.d20(): " << d.d20() << std::endl;
-//        res.output << "\tD20Dice.dPercentage(): " << d.dPercentage() << std::endl;
-//        res.output << "\tD20Dice.historyAsJSON(): " << std::endl;
-//        res.output << d.historyAsJSON() << std::endl;
-//        D6Dice dd("d6");
-//        res.output << "\tD6Dice.rollDice(): " << dd.rollDice() << std::endl;
-//        res.output << "\tD6Dice.historyAsJSON()" << dd.historyAsJSON() << std::endl;
-//        CoinFlip f("coin");
-//        res.output << "\tCoinFlip.asInt(): " << f.asInt() << std::endl;
-//        res.output << "\tCoinFlip.asString(): " << f.asString() << std::endl;
-//        res.output << "\tCoinFlip.historyAsJSON(): " << f.historyAsJSON() << std::endl;
-//        res.wasSuccessful(true);
-//        return res;
+//    inline diceRoll rollDice(Dice_t sides, unsigned int times) {
+//        diceRoll dr;
+//        dr.sides = sides;
+//        dr.times = times;
+//        int total = 0;
+//        for (int i = 0; i < times; i++) {
+//            int t = randomSource.Int(sides);
+//            dr.roll.push_back(t);
+//            total += t;
+//        }
+//        dr.total = total;
 //    }
+//
+//    class Dice_Object {
+//    public:
+//        Dice_Object(EZTools::EZString historyName) {
+//            EZRandom::init();
+//            _historyName = historyName;
+//        }
+//        ~Dice_Object() = default;
+//        std::vector<diceRoll> history;
+//        nlohmann::json historyAsJSON() {
+//            nlohmann::json res;
+//            res[_historyName] = nlohmann::json::array();
+//            int counter = 1;
+//            for (auto& d : history) {
+//                nlohmann::json dd;
+//                dd["id"] = counter;
+//                dd["sides"] = d.sides;
+//                dd["times"] = d.times;
+//                dd["total"] = d.total;
+//                dd["roll"] = d.roll;
+//                res[_historyName].push_back(dd);
+//                counter++;
+//            }
+//            return res;
+//        }
+//        diceRoll lastRoll() {
+//            return history[history.size() - 1];
+//        }
+//
+//    protected:
+//        EZRandom::EZRand randomSource;
+//        EZTools::EZString _historyName;
+//        int roll(int sides, int times) {
+//            diceRoll dr;
+//            dr.sides = sides;
+//            dr.times = times;
+//            int total = 0;
+//            for (int i = 0; i < times; i++) {
+//                int t = randomSource.Int(sides);
+//                dr.roll.push_back(t);
+//                total += t;
+//            }
+//            dr.total = total;
+//            history.push_back(dr);
+//            return total;
+//        }
+//    };
+//
+//    class D20Dice : public Dice_Object {
+//    public:
+//        D20Dice(EZTools::EZString historyName): Dice_Object(historyName) {}
+//        int coin() {
+//            int total = randomSource.Int(2);
+//            diceRoll dr;
+//            dr.total = total;
+//            dr.sides = 2;
+//            dr.times = 1;
+//            dr.roll.push_back(total);
+//            history.push_back(dr);
+//            return total;
+//        }
+//        EZTools::EZString coinAsString() {
+//            int total = randomSource.Int(2);
+//            diceRoll dr;
+//            dr.total = total;
+//            dr.sides = 2;
+//            dr.times = 1;
+//            dr.roll.push_back(total);
+//            history.push_back(dr);
+//            return _coinAsString(total);
+//        }
+//        int d4(int times = 1) { return roll(4, times); }
+//        int d6(int times = 1) { return roll(6, times); }
+//        int d8(int times = 1) { return roll(8, times); }
+//        int d10(int times = 1) { return roll(10, times); }
+//        int dPercentage() {
+//            int total = randombytes_uniform(101);
+//            diceRoll dr;
+//            dr.sides = 100;
+//            dr.times = 100;
+//            dr.roll.push_back(total);
+//            return total;
+//        }
+//        int d12(int times = 1) { return roll(12, times); }
+//        int d20(int times = 1) { return roll(20, times); }
+//
+//    protected:
+//        static EZTools::EZString _coinAsString(int value) {
+//            if (value == 1) {
+//                return "Heads";
+//            } else {
+//                return "Tails";
+//            }
+//        }
+//    };
+//
+//    class D6Dice : public Dice_Object {
+//    public:
+//        D6Dice(EZTools::EZString historyName): Dice_Object(historyName) {}
+//        int rollDice(int times = 1) { return roll(6, times); }
+//    };
+//
+//    class CoinFlip : public Dice_Object {
+//    public:
+//        CoinFlip(EZTools::EZString historyName): Dice_Object(historyName) {}
+//        int asInt() {
+//            int total = randomSource.Int(2);
+//            diceRoll dr;
+//            dr.sides = 2;
+//            dr.times = 1;
+//            dr.total = total;
+//            dr.roll.push_back(total);
+//            history.push_back(dr);
+//            return total;
+//        }
+//        EZTools::EZString asString() {
+//            int total = randomSource.Int(2);
+//            diceRoll dr;
+//            dr.total = total;
+//            dr.sides = 2;
+//            dr.times = 1;
+//            dr.roll.push_back(total);
+//            history.push_back(dr);
+//            return _coinAsString(total);
+//        }
+//    private:
+//        static EZTools::EZString _coinAsString(int value) {
+//            if (value == 1) {
+//                return "Heads";
+//            } else {
+//                return "Tails";
+//            }
+//        }
+//    };
+
+    inline EZTools::TEST_RETURN TEST() {
+        EZTools::TEST_RETURN res("EZDice");
+        std::stringstream ss;
+        Dice dice(NONUNIFORM);
+        ss << "\tdice.roll({COIN}): " << dice.roll({COIN}) << std::endl;
+        ss << "\tdice.lastAsCoin(): " << dice.lastAsCoin() << std::endl;
+        ss << "\tdice.roll({D4}): " << dice.roll({D4}) << std::endl;
+        ss << "\tdice.roll({D6}): " << dice.roll({D6}) << std::endl;
+        ss << "\tdice.roll({D8}): " << dice.roll({D8}) << std::endl;
+        ss << "\tdice.roll({D10}): " << dice.roll({D10}) << std::endl;
+        ss << "\tdice.roll({D12}): " << dice.roll({D12}) << std::endl;
+        ss << "\tdice.roll({D20}): " << dice.roll({D20}) << std::endl;
+        ss << "\tdice.roll({PERCENT}): " << dice.roll({PERCENT}) << std::endl;
+//        ss << "\tD20Dice.historyAsJSON(): " << std::endl;
+//        ss << d.historyAsJSON() << std::endl;
+//        D6Dice dd("d6");
+//        ss << "\tD6Dice.rollDice(): " << dd.rollDice() << std::endl;
+//        ss << "\tD6Dice.historyAsJSON()" << dd.historyAsJSON() << std::endl;
+//        CoinFlip f("coin");
+//        ss << "\tCoinFlip.asInt(): " << f.asInt() << std::endl;
+//        ss << "\tCoinFlip.asString(): " << f.asString() << std::endl;
+//        ss << "\tCoinFlip.historyAsJSON(): " << f.historyAsJSON() << std::endl;
+        res.output(ss.str());
+        res.wasSuccessful(true);
+        return res;
+    }
 
 }
 

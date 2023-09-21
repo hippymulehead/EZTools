@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,9 @@ either expressed or implied, of the MRUtils project.
 
 #ifndef EZT_EZJSONDATATYPES_H
 #define EZT_EZJSONDATATYPES_H
+
+#pragma once
+
 #include <iomanip>
 #include "EZJSONDataBaseTypes.h"
 

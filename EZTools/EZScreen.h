@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,8 @@ either expressed or implied, of the MRUtils project.
 #ifndef EZT_EZSCREEN_H
 #define EZT_EZSCREEN_H
 
+#pragma once
+
 #include <map>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -38,7 +40,6 @@ either expressed or implied, of the MRUtils project.
 #include <unistd.h>
 #include "EZTools.h"
 #include "EZLinux.h"
-#include "EZHTTP.h"
 
 namespace EZScreen {
 
@@ -65,6 +66,7 @@ namespace EZScreen {
 #define CON_CURSOR_ON "\e[?25h"
 #define CON_CURSOR_OFF "\e[?25l"
 #define CON_BELL "\07"
+#define CON_RESET "\u001b[0m"
 
     struct RGB {
         int red;
@@ -74,6 +76,11 @@ namespace EZScreen {
             red = Red;
             green = Green;
             blue = Blue;
+        }
+        RGB() {
+            red = 0;
+            green = 0;
+            blue = 0;
         }
     };
 
@@ -175,7 +182,7 @@ namespace EZScreen {
         } else return "";
     }
 
-    inline std::string putChar(EZScreen::SPECIAL_CHAR ch, bool color = true) {
+    inline std::string putChar(EZScreen::SPECIAL_CHAR ch, bool color = EZScreen::color) {
         if (color) {
             std::stringstream ss;
             ss << "\033(0" << char(ch) << "\033(B";
@@ -398,7 +405,7 @@ namespace EZScreen {
         return ss.str();
     }
 
-    inline void initScreen() {
+    inline void initScreen(bool wantColor = true) {
         winsize size;
         ioctl(0, TIOCGWINSZ, &size);
         EZScreen::maxX = size.ws_col;
@@ -416,6 +423,9 @@ namespace EZScreen {
             EZScreen::color = i != 0;
         } else {
             EZScreen::color = false;
+        }
+        if (!wantColor && color) {
+            color = false;
         }
     }
 
@@ -514,45 +524,42 @@ namespace EZScreen {
         std::cout << CON_BELL << std::flush;
     }
 
-    inline void errorMessage(EZTools::EZReturnMetaData metaData, bool fatal = true) {
+    inline int errorMessage(EZTools::EZReturnMetaData metaData) {
         consoleBell();
         if (color) {
             std::cout << foreground(BRIGHT_RED) << CON_BOLD_ON;
             std::cout << "Error " << metaData.exitCode << " in " << metaData.location << std::endl
-                << foreground(BRIGHT_YELLOW) << CON_BOLD_OFF
-                << metaData.message << std::endl << CON_RESET << std::flush;
+                      << foreground(BRIGHT_YELLOW) << CON_BOLD_OFF
+                      << metaData.message << std::endl << CON_RESET << std::flush;
         } else {
             std::cout << "Error " << metaData.exitCode << " in " << metaData.location << std::endl
-                << metaData.message << std::endl;
+                      << metaData.message << std::endl;
         }
-        if (fatal) {
-            exit(metaData.exitCode);
-        }
+        return metaData.exitCode;
     }
 
-    inline void HTTPErrorMessage(EZHTTP::HTTPResponseMetaData metaData, bool fatal = true) {
-        consoleBell();
-        if (color) {
-            std::cout << foreground(BRIGHT_RED) << CON_BOLD_ON;
-            std::cout << "Error " << metaData.curlCode << " in " << metaData.location << std::endl
-                      << foreground(BRIGHT_YELLOW) << CON_BOLD_OFF
-                      << metaData.message << std::endl;
-            std::cout << foreground(BRIGHT_CYAN) << "HTTP Code: " << metaData.httpResponseCode
-                      << std::endl << CON_RESET << std::flush;
-        } else {
-            std::cout << "Error " << metaData.curlCode << " in " << metaData.location << std::endl
-                      << metaData.message << std::endl;
-            std::cout << "HTTP Code: " << metaData.httpResponseCode << std::endl;
-        }
-        if (fatal) {
-            exit(metaData.curlCode);
-        }
-    }
+//    inline int HTTPErrorMessage(EZHTTP::EZReturnHTTP metaData, bool fatal = true) {
+//        consoleBell();
+//        if (color) {
+//            std::cout << foreground(BRIGHT_RED) << CON_BOLD_ON;
+//            std::cout << "Error " << metaData.httpCode() << " in " << metaData.location() << std::endl
+//                      << foreground(BRIGHT_YELLOW) << CON_BOLD_OFF
+//                      << metaData.message() << std::endl;
+//            std::cout << foreground(BRIGHT_CYAN) << "HTTP Code: " << metaData.httpCode()
+//                      << std::endl << CON_RESET << std::flush;
+//        } else {
+//            std::cout << "Error " << metaData.httpCode() << " in " << metaData.location() << std::endl
+//                      << metaData.message() << std::endl;
+//            std::cout << "HTTP Code: " << metaData.httpCode() << std::endl;
+//        }
+//        if (fatal) {
+//            return metaData.httpCode();
+//        }
+//    }
 
     inline void reset() {
         std::cout << CON_RESET << std::flush;
     }
-
 }
 
 #endif //EZT_EZSCREEN_H

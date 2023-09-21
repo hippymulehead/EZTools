@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,7 +29,10 @@ either expressed or implied, of the MRUtils project.
 
 #ifndef EZT_EZHTMLDOCUMENT_H
 #define EZT_EZHTMLDOCUMENT_H
-#include "json.h"
+
+#pragma once
+
+#include "nlohmann/json.hpp"
 #include "EZTools.h"
 
 namespace EZHTMLDocument {

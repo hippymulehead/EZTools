@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017-2021, Michael Romans of Romans Audio
+Copyright (c) 2017-2022, Michael Romans of Romans Audio
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,8 @@ either expressed or implied, of the MRUtils project.
 
 #ifndef CRYPTOPPTEST_EZCRYPTOPP_H
 #define CRYPTOPPTEST_EZCRYPTOPP_H
+
+#pragma once
 
 #include <iostream>
 #include <string>
@@ -64,7 +66,7 @@ public:
     static string HexEncode(string binaryString) {
         if (isHex(binaryString)) {
             // This string is already hex, don't convert it!
-            return binaryString;
+            return binaryString;;
         } else {
             string hexString;
             StringSource(binaryString, true, new HexEncoder(new StringSink(hexString)));
@@ -83,7 +85,8 @@ public:
         }
     }
 
-    static string EncryptStringAES(string plainText, string key, string iv, bool &err, string &errMsg) {
+    static EZTools::EZReturn<string> EncryptStringAES(string plainText, string key, string iv, bool &err, string &errMsg) {
+        EZTools::EZReturn<string> res;
         // returns an encypted string in binary
         // This version uses the given iv and returns only the cipherText with no prepend
         try {
@@ -107,17 +110,19 @@ public:
 
             // return the concatated iv and cipherText
             err = false;
-            return cipherText;
+            res.wasSuccessful(true);
+            res.data = cipherText;
+            return res;
         } catch (Exception& e) {
-            string errText = "Bad encrypt";
-            errMsg = e.GetWhat();
-            err = true;
-            return errText;
+            res.wasSuccessful(false);
+            res.message(e.GetWhat());
+            return res;
         }
 
     }
 
-    static string DecryptStringAES(string cipherText, string key, string iv, bool &err, string &errMsg){
+    static EZTools::EZReturn<string> DecryptStringAES(string cipherText, string key, string iv, bool &err, string &errMsg){
+        EZTools::EZReturn<string> res;
         // returns the decrypted string
         // This version uses the given iv
         // use DecryptStringAES(cipherText, key, err) if the iv is prepended to the cipherText
@@ -144,12 +149,16 @@ public:
             string plainText;
             StringSource( cipherText, true, new StreamTransformationFilter( d, new StringSink( plainText)));
             err = false;
-            return plainText;
+            res.wasSuccessful(true);
+            res.data = plainText;
+            return res;
         } catch (Exception& e) {
+            res.wasSuccessful(false);
             string errText = "Bad decrypt";
+            res.message(e.GetWhat());
             errMsg = e.GetWhat();
             err = true;
-            return errText;
+            return res;
         }
     }
 
@@ -237,7 +246,7 @@ public:
     static string hashSHA256(string inputString) {
         // returns a SHA-256 encoded hash of the inputString in binary
         // always returns 256 bits
-        SHA256 hash;
+        CryptoPP::SHA256 hash;
 #ifdef CENTOS7
         byte digest [ SHA256::DIGESTSIZE ];
 
@@ -253,8 +262,8 @@ public:
         return hashString;
     }
 
-    static inline EZTools::EZString generateAES256Key() {
-        return HexEncode(EZCryptopp::BitGen(256));
+    static inline string generateAES256Key() {
+        return HexEncode(EZCryptopp::BitGen(256));;
     }
 
     class AES256KeyPair {
@@ -306,18 +315,32 @@ public:
         }
         ~Password_t() = default;
         void setUnencryptedPassword(EZTools::EZString password) {
-            _encPass = HexEncode(EZCryptopp::EncryptStringAES(password, _keys.publicKey(),
-                    _keys.privateKey(),_error,_errorMessage));
+            auto r1 = EncryptStringAES(password, _keys.publicKey(),_keys.privateKey(),_error,_errorMessage);
+            if (!r1.wasSuccessful()) {
+                std::cout << r1.message() << endl;
+                exit(EXIT_FAILURE);
+            }
+            _encPass = HexEncode(r1.data);
             _hash = HexEncode(hashSHA256(password));
         }
         EZTools::EZString decrypt() {
-            return EZCryptopp::DecryptStringAES(_encPass, _keys.publicKey(), _keys.privateKey(),
-                    _error,_errorMessage);
+            auto r1 = DecryptStringAES(_encPass, _keys.publicKey(), _keys.privateKey(),
+                                       _error,_errorMessage);
+            if (!r1.wasSuccessful()) {
+                std::cout << r1.message() << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            return r1.data;
         }
         void setEncryptedPassword(EZTools::EZString hexPass) {
             _encPass = hexPass;
-            _hash = HexEncode(hashSHA256(EZCryptopp::DecryptStringAES(_encPass,
-                    _keys.publicKey(),_keys.privateKey(), _error,_errorMessage)));
+            auto r1 = DecryptStringAES(_encPass,
+                                       _keys.publicKey(),_keys.privateKey(), _error,_errorMessage);
+            if (!r1.wasSuccessful()) {
+                std::cout << r1.message() << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            _hash = HexEncode(hashSHA256(r1.data));
         }
         EZTools::EZString encryptedPassword() { return _encPass; }
         EZTools::EZString sha256Hash() { return _hash; }
